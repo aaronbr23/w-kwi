@@ -66,9 +66,20 @@ export async function addPart(id: string, part: { type: string; id: string; top?
 }
 
 export async function removePart(id: string, partId: string) {
+  if (partId === 'board') throw new Error('Cannot remove the board part');
   const d = await store.getDiagram(id);
   d.parts = d.parts.filter((p) => p.id !== partId);
   d.connections = d.connections.filter(([a, b]) => !a.startsWith(partId + ':') && !b.startsWith(partId + ':'));
+  await store.setDiagram(id, d);
+}
+
+export async function movePart(id: string, partId: string, patch: { top?: number; left?: number; rotate?: number }) {
+  const d = await store.getDiagram(id);
+  const part = d.parts.find((p) => p.id === partId);
+  if (!part) throw new Error(`Unknown part "${partId}"`);
+  if (patch.top !== undefined) part.top = patch.top;
+  if (patch.left !== undefined) part.left = patch.left;
+  if (patch.rotate !== undefined) part.rotate = patch.rotate;
   await store.setDiagram(id, d);
 }
 

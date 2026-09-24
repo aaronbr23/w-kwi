@@ -43,6 +43,10 @@ export function createMcpServer(): McpServer {
     },
   }, ({ id, partId, ...part }) => guard(async () => { await core.addPart(id, { ...part, id: partId }); return text('added'); }));
   tool('remove_part', { inputSchema: { id: z.string(), partId: z.string() } }, ({ id, partId }) => guard(async () => { await core.removePart(id, partId); return text('removed'); }));
+  tool('move_part', {
+    description: 'Update a part\'s position/rotation.',
+    inputSchema: { id: z.string(), partId: z.string(), top: z.number().optional(), left: z.number().optional(), rotate: z.number().optional() },
+  }, ({ id, partId, ...patch }) => guard(async () => { await core.movePart(id, partId, patch); return text('moved'); }));
   tool('connect', {
     description: 'Wire two pins, e.g. from="board:13" to="led1:A".',
     inputSchema: { id: z.string(), from: z.string(), to: z.string(), color: z.string().optional() },

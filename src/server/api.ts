@@ -59,10 +59,17 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, url: 
       if (action === 'parts') {
         if (method === 'POST') { const b = await body(req) as { type: string; id: string; top?: number; left?: number; rotate?: number; attrs?: Record<string, string> }; await core.addPart(id, b); return ok(res, { ok: true }); }
       }
+      if (action === 'connections') {
+        // Bug fix: this used to be gated on parts.length === 4 alongside the parts/:id routes
+        // below, but "/api/projects/:id/connections" only ever has 3 segments, so POST here
+        // (the wire-two-pins endpoint) was unreachable - a 404 on every "connect" call.
+        if (method === 'POST') { const b = await body(req) as { from: string; to: string; color?: string }; await core.connect(id, b.from, b.to, b.color); return ok(res, { ok: true }); }
+        if (method === 'DELETE') { const b = await body(req) as { from: string; to: string }; await core.disconnect(id, b.from, b.to); return ok(res, { ok: true }); }
+      }
     }
 
     if (parts[0] === 'projects' && parts.length === 4 && parts[2] === 'parts' && method === 'DELETE') { await core.removePart(parts[1], parts[3]); return ok(res, { ok: true }); }
-    if (parts[0] === 'projects' && parts.length === 4 && parts[2] === 'connections' && method === 'POST') { const b = await body(req) as { from: string; to: string; color?: string }; await core.connect(parts[1], b.from, b.to, b.color); return ok(res, { ok: true }); }
+    if (parts[0] === 'projects' && parts.length === 4 && parts[2] === 'parts' && method === 'PATCH') { const b = await body(req) as { top?: number; left?: number; rotate?: number }; await core.movePart(parts[1], parts[3], b); return ok(res, { ok: true }); }
 
     send(res, 404, { error: `No route for ${method} ${url.pathname}` });
     return true;

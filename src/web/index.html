@@ -16,9 +16,39 @@
     #tabs button { background: none; border: none; color: #aaa; padding: 6px 12px; border-right: 1px solid #333; }
     #tabs button.active { color: #fff; background: #1e1e1e; }
     #right-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+    #msg { display: none; background: #3a1d1d; color: #f88; border-bottom: 1px solid #533; padding: 6px 10px; align-items: flex-start; gap: 8px; }
+    #msg.show { display: flex; }
+    #msg.info { background: #1d2a3a; color: #8cf; }
+    #msg pre { flex: 1; margin: 0; white-space: pre-wrap; word-break: break-word; max-height: 150px; overflow: auto; font-family: monospace; font-size: 12px; }
+    #msg button { background: none; border: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
+
+    #palette { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: #252526; border-bottom: 1px solid #333; max-height: 78px; overflow-y: auto; flex-shrink: 0; }
+    #palette button { background: #333; border: 1px solid #555; color: #ddd; border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: grab; }
+    #palette button:hover { background: #444; }
+    #palette button:active { cursor: grabbing; }
+
     #canvas { flex: 1; position: relative; overflow: auto; background: #2b2b2b; background-image: radial-gradient(#3a3a3a 1px, transparent 1px); background-size: 16px 16px; }
-    #canvas .part { position: absolute; }
-    #connections { max-height: 90px; overflow: auto; font-family: monospace; font-size: 11px; padding: 4px 8px; background: #202020; border-top: 1px solid #333; color: #999; }
+    #canvas-inner { position: relative; width: 2400px; height: 1600px; }
+    #wires, #temp-wire, #parts-layer, #pins-layer { position: absolute; inset: 0; pointer-events: none; }
+    #temp-wire { display: none; }
+    #temp-wire line { stroke: #4da3ff; stroke-width: 2; stroke-dasharray: 4 3; }
+
+    .part { position: absolute; pointer-events: auto; cursor: grab; }
+    .part.dragging { cursor: grabbing; opacity: 0.85; }
+    .part.selected { outline: 2px solid #4da3ff; outline-offset: 3px; filter: drop-shadow(0 0 6px rgba(77, 163, 255, 0.55)); }
+
+    .pin-dot { position: absolute; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: #ffcc00; border: 1px solid #a67c00; cursor: crosshair; pointer-events: auto; box-sizing: border-box; }
+    .pin-dot:hover { width: 12px; height: 12px; margin: -6px; background: #fff2a8; }
+    .pin-dot.active { background: #4da3ff; border-color: #1a5fb4; }
+
+    #toolbar { position: absolute; display: none; gap: 4px; background: #252526; border: 1px solid #555; border-radius: 4px; padding: 3px; pointer-events: auto; white-space: nowrap; transform: translateY(-100%); }
+    #toolbar button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 12px; }
+    #toolbar button:hover { background: #444; }
+
+    #empty-hint { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: #777; pointer-events: none; font-size: 13px; }
+
+    #connections { max-height: 70px; overflow: auto; font-family: monospace; font-size: 11px; padding: 4px 8px; background: #202020; border-top: 1px solid #333; color: #999; }
     #serial { height: 180px; display: flex; flex-direction: column; border-top: 1px solid #333; }
     #serial-out { flex: 1; overflow: auto; background: #111; color: #0f0; font-family: monospace; font-size: 12px; padding: 6px; white-space: pre-wrap; }
     #serial-in { display: flex; }
@@ -42,6 +72,7 @@
     <button id="edit-diagram">Edit diagram.json</button>
     <span id="status"></span>
   </header>
+  <div id="msg"><pre id="msg-text"></pre><button id="msg-close">×</button></div>
   <main>
     <div id="editor-pane">
       <div id="tabs"></div>
@@ -49,7 +80,17 @@
       <textarea id="diagram-json" spellcheck="false"></textarea>
     </div>
     <div id="right-pane">
-      <div id="canvas"></div>
+      <div id="palette"></div>
+      <div id="canvas">
+        <div id="canvas-inner">
+          <svg id="wires"></svg>
+          <svg id="temp-wire"><line id="temp-line" x1="0" y1="0" x2="0" y2="0" /></svg>
+          <div id="parts-layer"></div>
+          <div id="pins-layer"></div>
+          <div id="toolbar"></div>
+          <div id="empty-hint">Drag a part from the palette to add it</div>
+        </div>
+      </div>
       <div id="connections"></div>
       <div id="serial">
         <div id="serial-out"></div>
