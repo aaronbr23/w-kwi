@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CircuitLab</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font: 13px/1.4 -apple-system, sans-serif; background: #1e1e1e; color: #ddd; height: 100vh; display: flex; flex-direction: column; }
+    header { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: #252526; border-bottom: 1px solid #333; }
+    header select, header button, header input { background: #333; color: #ddd; border: 1px solid #555; border-radius: 3px; padding: 4px 8px; }
+    header button:hover { background: #444; cursor: pointer; }
+    main { flex: 1; display: flex; min-height: 0; }
+    #editor-pane { width: 45%; display: flex; flex-direction: column; border-right: 1px solid #333; }
+    #editor { flex: 1; }
+    #tabs { display: flex; background: #252526; }
+    #tabs button { background: none; border: none; color: #aaa; padding: 6px 12px; border-right: 1px solid #333; }
+    #tabs button.active { color: #fff; background: #1e1e1e; }
+    #right-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    #canvas { flex: 1; position: relative; overflow: auto; background: #2b2b2b; background-image: radial-gradient(#3a3a3a 1px, transparent 1px); background-size: 16px 16px; }
+    #canvas .part { position: absolute; }
+    #connections { max-height: 90px; overflow: auto; font-family: monospace; font-size: 11px; padding: 4px 8px; background: #202020; border-top: 1px solid #333; color: #999; }
+    #serial { height: 180px; display: flex; flex-direction: column; border-top: 1px solid #333; }
+    #serial-out { flex: 1; overflow: auto; background: #111; color: #0f0; font-family: monospace; font-size: 12px; padding: 6px; white-space: pre-wrap; }
+    #serial-in { display: flex; }
+    #serial-in input { flex: 1; }
+    #status { margin-left: auto; opacity: 0.7; }
+    #diagram-json { display: none; flex: 1; width: 100%; box-sizing: border-box; background: #111; color: #ddd; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <header>
+    <select id="project"></select>
+    <button id="new-project">New</button>
+    <select id="new-board">
+      <option value="wokwi-arduino-uno">Uno</option>
+      <option value="wokwi-arduino-nano">Nano</option>
+      <option value="wokwi-arduino-mega">Mega</option>
+    </select>
+    <button id="compile">Compile</button>
+    <button id="start">▶ Start</button>
+    <button id="stop">■ Stop</button>
+    <button id="edit-diagram">Edit diagram.json</button>
+    <span id="status"></span>
+  </header>
+  <main>
+    <div id="editor-pane">
+      <div id="tabs"></div>
+      <div id="editor"></div>
+      <textarea id="diagram-json" spellcheck="false"></textarea>
+    </div>
+    <div id="right-pane">
+      <div id="canvas"></div>
+      <div id="connections"></div>
+      <div id="serial">
+        <div id="serial-out"></div>
+        <div id="serial-in"><input id="serial-input" placeholder="Send to serial…" /></div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

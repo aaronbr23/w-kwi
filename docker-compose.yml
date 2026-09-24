@@ -1,0 +1,14 @@
+services:
+  circuitlab:
+    build: .
+    ports:
+      - '8080:8080'
+    volumes:
+      - circuitlab-data:/data
+    environment:
+      # Set to require this bearer token on /mcp, e.g. `claude mcp add --transport http
+      # circuitlab http://localhost:8080/mcp --header "Authorization: Bearer <token>"`.
+      MCP_TOKEN: ''
+
+volumes:
+  circuitlab-data:
