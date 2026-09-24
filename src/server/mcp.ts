@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import * as core from './core.ts';
 import { Session } from '../sim/session.ts';
+import { runScenario } from './scenario.ts';
 
 const text = (s: string): CallToolResult => ({ content: [{ type: 'text', text: s }] });
 const json = (v: unknown): CallToolResult => text(JSON.stringify(v, null, 2));
@@ -55,6 +56,11 @@ export function createMcpServer(): McpServer {
     ({ id, from, to }) => guard(async () => { await core.disconnect(id, from, to); return text('disconnected'); }));
   tool('set_part_attr', { inputSchema: { id: z.string(), partId: z.string(), name: z.string(), value: z.string() } },
     ({ id, partId, name, value }) => guard(async () => { await core.setPartAttr(id, partId, name, value); return text('set'); }));
+  tool('set_board', {
+    description: 'Switch a project\'s board/MCU. Stops any running simulation (the old compiled hex is for the wrong MCU); '
+      + 'existing wiring is kept as-is, so pins that don\'t exist on the new board will be dangling until re-wired.',
+    inputSchema: { id: z.string(), board: z.string().describe('e.g. wokwi-arduino-uno') },
+  }, ({ id, board }) => guard(async () => { await core.setBoard(id, board); return text('board switched'); }));
 
   tool('compile', { description: 'Compile sketch/sketch.ino with arduino-cli. Returns compiler output; check .ok.', inputSchema: { id: z.string() } },
     ({ id }) => guard(async () => { const r = await core.compileProject(id); return json({ ok: r.ok, output: r.output }); }));
@@ -91,6 +97,16 @@ export function createMcpServer(): McpServer {
   }, ({ id, pins, durationMs }) => guard(async () => {
     const samples = await core.getSession(id).captureLogic(pins, durationMs * 1e6);
     return text(Session.toVCD(pins, samples));
+  }));
+
+  tool('run_scenario', {
+    description: 'Run a YAML test scenario (steps: delay, wait-serial, write-serial, expect-pin, set-control, take-screenshot) '
+      + 'against a project, starting the simulation if not already running (and stopping it again if this call started it). '
+      + 'See test/scenarios/*.yaml for examples.',
+    inputSchema: { id: z.string(), yaml: z.string() },
+  }, ({ id, yaml }) => guard(async () => {
+    const { pass, log } = await runScenario(id, yaml);
+    return text(`${pass ? 'PASS' : 'FAIL'}\n${log.join('\n')}`);
   }));
 
   tool('screenshot', {

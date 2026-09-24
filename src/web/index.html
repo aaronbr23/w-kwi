@@ -4,56 +4,81 @@
   <meta charset="utf-8" />
   <title>CircuitLab</title>
   <style>
-    :root { color-scheme: dark; }
-    body { margin: 0; font: 13px/1.4 -apple-system, sans-serif; background: #1e1e1e; color: #ddd; height: 100vh; display: flex; flex-direction: column; }
-    header { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: #252526; border-bottom: 1px solid #333; }
-    header select, header button, header input { background: #333; color: #ddd; border: 1px solid #555; border-radius: 3px; padding: 4px 8px; }
-    header button:hover { background: #444; cursor: pointer; }
+    :root {
+      color-scheme: dark;
+      --accent: #4da3ff;
+      --accent-dim: #1a5fb4;
+      --green: #3ecf8e;
+      --amber: #e8a33d;
+      --red: #f88;
+    }
+    body { margin: 0; font: 13px/1.4 -apple-system, sans-serif; background: #1a1a1e; color: #ddd; height: 100vh; display: flex; flex-direction: column; }
+    header { display: flex; gap: 8px; align-items: center; padding: 7px 10px; background: linear-gradient(180deg, #262a35, #20232c); border-bottom: 1px solid #3a4050; box-shadow: 0 1px 0 rgba(0,0,0,0.3); }
+    header select, header button, header input { background: #33384a; color: #ddd; border: 1px solid #4a5068; border-radius: 4px; padding: 4px 8px; }
+    header button:hover { background: #454c66; cursor: pointer; }
+    header button.accent { background: var(--green); border-color: var(--green); color: #0a2419; font-weight: 600; }
+    header button.accent:hover { background: #55e0a5; }
+    .hsep { width: 1px; align-self: stretch; background: #3a4050; margin: 0 2px; }
+    .hlabel { opacity: 0.75; font-size: 12px; }
     main { flex: 1; display: flex; min-height: 0; }
-    #editor-pane { width: 45%; display: flex; flex-direction: column; border-right: 1px solid #333; }
+    #editor-pane { width: 45%; display: flex; flex-direction: column; border-right: 1px solid #333; background: #1c1e24; }
     #editor { flex: 1; }
-    #tabs { display: flex; background: #252526; }
-    #tabs button { background: none; border: none; color: #aaa; padding: 6px 12px; border-right: 1px solid #333; }
-    #tabs button.active { color: #fff; background: #1e1e1e; }
-    #right-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    #tabs { display: flex; background: #20222a; }
+    #tabs button { background: none; border: none; border-bottom: 2px solid transparent; color: #aaa; padding: 6px 12px; border-right: 1px solid #2c2f38; }
+    #tabs button.active { color: #fff; background: #1c1e24; border-bottom: 2px solid var(--accent); }
+    #right-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #202329; }
 
-    #msg { display: none; background: #3a1d1d; color: #f88; border-bottom: 1px solid #533; padding: 6px 10px; align-items: flex-start; gap: 8px; }
+    #msg { display: none; background: #3a1d1d; color: var(--red); border-bottom: 1px solid #6a2f2f; padding: 6px 10px; align-items: flex-start; gap: 8px; }
     #msg.show { display: flex; }
-    #msg.info { background: #1d2a3a; color: #8cf; }
+    #msg.info { background: #16324a; color: #8cf; border-bottom-color: #2a5a82; }
     #msg pre { flex: 1; margin: 0; white-space: pre-wrap; word-break: break-word; max-height: 150px; overflow: auto; font-family: monospace; font-size: 12px; }
     #msg button { background: none; border: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
 
-    #palette { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: #252526; border-bottom: 1px solid #333; max-height: 78px; overflow-y: auto; flex-shrink: 0; }
-    #palette button { background: #333; border: 1px solid #555; color: #ddd; border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: grab; }
-    #palette button:hover { background: #444; }
-    #palette button:active { cursor: grabbing; }
+    #palette { padding: 4px 8px 6px; background: #23262e; border-bottom: 1px solid #333; max-height: 168px; overflow-y: auto; flex-shrink: 0; }
+    .palette-section { margin-top: 4px; }
+    .palette-section h4 { margin: 4px 0 3px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #7d8aa8; font-weight: 600; }
+    .palette-row { display: flex; flex-wrap: wrap; gap: 4px; }
+    .palette-row button { background: #333a4a; border: 1px solid #4a5068; color: #ddd; border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: grab; }
+    .palette-row button:hover { background: #454e66; border-color: var(--accent); }
+    .palette-row button:active { cursor: grabbing; }
+    .palette-section:nth-of-type(1) h4 { color: var(--green); }
+    .palette-section:nth-of-type(2) h4 { color: var(--amber); }
+    .palette-section:nth-of-type(3) h4 { color: #ef7bb0; }
+    .palette-section:nth-of-type(4) h4 { color: var(--accent); }
+    .palette-section:nth-of-type(5) h4 { color: #b58aff; }
 
-    #canvas { flex: 1; position: relative; overflow: auto; background: #2b2b2b; background-image: radial-gradient(#3a3a3a 1px, transparent 1px); background-size: 16px 16px; }
+    #canvas { flex: 1; position: relative; overflow: auto; background: #26282f; background-image: radial-gradient(#3c4050 1px, transparent 1px); background-size: 16px 16px; }
     #canvas-inner { position: relative; width: 2400px; height: 1600px; }
     #wires, #temp-wire, #parts-layer, #pins-layer { position: absolute; inset: 0; pointer-events: none; }
     #temp-wire { display: none; }
-    #temp-wire line { stroke: #4da3ff; stroke-width: 2; stroke-dasharray: 4 3; }
+    #temp-wire line { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
 
     .part { position: absolute; pointer-events: auto; cursor: grab; }
     .part.dragging { cursor: grabbing; opacity: 0.85; }
-    .part.selected { outline: 2px solid #4da3ff; outline-offset: 3px; filter: drop-shadow(0 0 6px rgba(77, 163, 255, 0.55)); }
+    .part.selected { outline: 2px solid var(--accent); outline-offset: 3px; filter: drop-shadow(0 0 7px rgba(77, 163, 255, 0.6)); }
 
-    .pin-dot { position: absolute; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: #ffcc00; border: 1px solid #a67c00; cursor: crosshair; pointer-events: auto; box-sizing: border-box; }
-    .pin-dot:hover { width: 12px; height: 12px; margin: -6px; background: #fff2a8; }
-    .pin-dot.active { background: #4da3ff; border-color: #1a5fb4; }
+    /* Bigger invisible hit target around a smaller visible dot - same idea as the wires' fat
+       invisible hit-line + thin visible line, so pins are easier to click at 1:1 zoom. */
+    .pin-hit { position: absolute; width: 22px; height: 22px; margin: -11px; border-radius: 50%; cursor: crosshair; pointer-events: auto; }
+    .pin-dot { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%; background: var(--amber); border: 1px solid #a67c00; pointer-events: none; box-sizing: border-box; }
+    .pin-hit:hover .pin-dot { width: 11px; height: 11px; margin: -5.5px; background: #ffe9a8; }
+    .pin-dot.active { background: var(--accent); border-color: var(--accent-dim); }
 
-    #toolbar { position: absolute; display: none; gap: 4px; background: #252526; border: 1px solid #555; border-radius: 4px; padding: 3px; pointer-events: auto; white-space: nowrap; transform: translateY(-100%); }
-    #toolbar button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 12px; }
-    #toolbar button:hover { background: #444; }
+    #toolbar { position: absolute; display: none; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 320px; background: #2a2e3a; border: 1px solid #4a5068; border-radius: 5px; padding: 4px; pointer-events: auto; white-space: nowrap; transform: translateY(-100%); box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+    #toolbar button { background: #383e50; color: #ddd; border: 1px solid #4a5068; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 12px; }
+    #toolbar button:hover { background: #4a5268; }
+    #toolbar button.active { background: var(--green); border-color: var(--green); color: #0a2419; }
+    .ctrl-slider { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #ccc; }
+    .ctrl-slider input[type="range"] { width: 70px; accent-color: var(--accent); }
 
-    #empty-hint { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: #777; pointer-events: none; font-size: 13px; }
+    #empty-hint { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: #7d8aa8; pointer-events: none; font-size: 13px; }
 
-    #connections { max-height: 70px; overflow: auto; font-family: monospace; font-size: 11px; padding: 4px 8px; background: #202020; border-top: 1px solid #333; color: #999; }
+    #connections { max-height: 70px; overflow: auto; font-family: monospace; font-size: 11px; padding: 4px 8px; background: #191b20; border-top: 1px solid #333; color: #8a92a8; }
     #serial { height: 180px; display: flex; flex-direction: column; border-top: 1px solid #333; }
-    #serial-out { flex: 1; overflow: auto; background: #111; color: #0f0; font-family: monospace; font-size: 12px; padding: 6px; white-space: pre-wrap; }
+    #serial-out { flex: 1; overflow: auto; background: #0e0f11; color: #3ecf8e; font-family: monospace; font-size: 12px; padding: 6px; white-space: pre-wrap; }
     #serial-in { display: flex; }
     #serial-in input { flex: 1; }
-    #status { margin-left: auto; opacity: 0.7; }
+    #status { margin-left: auto; opacity: 0.8; }
     #diagram-json { display: none; flex: 1; width: 100%; box-sizing: border-box; background: #111; color: #ddd; font-family: monospace; }
   </style>
 </head>
@@ -61,13 +86,23 @@
   <header>
     <select id="project"></select>
     <button id="new-project">New</button>
-    <select id="new-board">
+    <select id="new-board" title="Board for the New button">
       <option value="wokwi-arduino-uno">Uno</option>
       <option value="wokwi-arduino-nano">Nano</option>
       <option value="wokwi-arduino-mega">Mega</option>
     </select>
+    <span class="hsep"></span>
+    <label class="hlabel">Board:</label>
+    <select id="board-select" title="Switch the current project's board">
+      <option value="wokwi-arduino-uno">Uno</option>
+      <option value="wokwi-arduino-nano">Nano</option>
+      <option value="wokwi-arduino-mega">Mega</option>
+    </select>
+    <button id="import-project">Import…</button>
+    <input id="import-input" type="file" multiple accept=".ino,.json,.txt,.zip" style="display:none" />
+    <span class="hsep"></span>
     <button id="compile">Compile</button>
-    <button id="start">▶ Start</button>
+    <button id="start" class="accent">▶ Start</button>
     <button id="stop">■ Stop</button>
     <button id="edit-diagram">Edit diagram.json</button>
     <span id="status"></span>

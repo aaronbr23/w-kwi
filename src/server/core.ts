@@ -95,12 +95,49 @@ export async function disconnect(id: string, from: string, to: string) {
   await store.setDiagram(id, d);
 }
 
+export async function setBoard(id: string, board: string) {
+  if (!BOARD_TYPES.includes(board)) throw new Error(`Unknown board type "${board}". Known: ${BOARD_TYPES.join(', ')}`);
+  stopSimulation(id); // old compiled hex/session was built for the previous MCU
+  const d = await store.getDiagram(id);
+  const part = d.parts.find((p) => p.id === 'board');
+  if (!part) throw new Error(`Project "${id}" has no part with id "board"`);
+  part.type = board;
+  await store.setDiagram(id, d);
+}
+
 export async function setPartAttr(id: string, partId: string, name: string, value: string) {
   const d = await store.getDiagram(id);
   const part = d.parts.find((p) => p.id === partId);
   if (!part) throw new Error(`Unknown part "${partId}"`);
   part.attrs = { ...part.attrs, [name]: value };
   await store.setDiagram(id, d);
+}
+
+/** Import a project from an uploaded file set (see api.ts POST /projects/import for the shape).
+ *  Board comes from the uploaded diagram.json if present and valid, else defaults to an Uno. */
+export async function importProject(files: Record<string, string>): Promise<string> {
+  let board = 'wokwi-arduino-uno';
+  let diagramValid = false;
+  const diagramRaw = files['diagram.json'];
+  if (diagramRaw !== undefined) {
+    try {
+      const d = JSON.parse(diagramRaw) as Diagram;
+      diagramValid = true;
+      const t = d.parts?.find((p) => p.id === 'board')?.type;
+      if (t && BOARD_TYPES.includes(t)) board = t;
+      else if (t) console.log(`importProject: unknown board type "${t}" in uploaded diagram.json, defaulting to ${board}`);
+    } catch {
+      console.log('importProject: diagram.json in upload is not valid JSON, ignoring it and starting from a default diagram');
+    }
+  }
+  const id = await store.createProject(board); // scaffolds default sketch/diagram.json/libraries.txt
+  for (const [name, content] of Object.entries(files)) {
+    if (name === 'diagram.json') { if (diagramValid) await store.writeFile(id, 'diagram.json', content); continue; }
+    if (name === 'libraries.txt') { await store.writeFile(id, 'libraries.txt', content); continue; }
+    if (!name.includes('/') && name.endsWith('.ino')) { await store.writeFile(id, store.SKETCH_MAIN, content); continue; }
+    await store.writeFile(id, name.startsWith('sketch/') ? name : `sketch/${name}`, content);
+  }
+  return id;
 }
 
 export { store, type LogicSample };

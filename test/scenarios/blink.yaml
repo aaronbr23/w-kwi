@@ -1,0 +1,12 @@
+name: blink toggles pin 13 and prints on/off over serial
+steps:
+  - wait-serial: "on"
+    timeout: 3000
+  - expect-pin:
+      pin: "board:13"
+      value: high
+  - wait-serial: "off"
+    timeout: 3000
+  - expect-pin:
+      pin: "board:13"
+      value: low

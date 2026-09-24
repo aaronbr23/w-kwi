@@ -1,4 +1,5 @@
 import '@wokwi/elements';
+import './breadboard-element.ts';
 import * as monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 
@@ -33,6 +34,79 @@ const connectionsBox = $<HTMLElement>('connections');
 const serialOut = $<HTMLElement>('serial-out');
 const diagramJson = $<HTMLTextAreaElement>('diagram-json');
 const tabs = $<HTMLElement>('tabs');
+const boardSelect = $<HTMLSelectElement>('board-select');
+const importInput = $<HTMLInputElement>('import-input');
+
+/** Palette grouping: cheapest correct grouping is to mirror src/parts/catalog.ts's own import
+ *  structure (basic.ts/timing.ts/displays.ts/i2c.ts) rather than adding a server round-trip for it. */
+const CATEGORIES: { label: string; types: string[] }[] = [
+  { label: 'Prototyping', types: ['circuitlab-breadboard'] },
+  { label: 'Basic & Switches', types: [
+    'wokwi-led', 'wokwi-rgb-led', 'wokwi-resistor', 'wokwi-pushbutton', 'wokwi-pushbutton-6mm',
+    'wokwi-slide-switch', 'wokwi-tilt-switch', 'wokwi-dip-switch-8', 'wokwi-potentiometer',
+    'wokwi-slide-potentiometer', 'wokwi-analog-joystick', 'wokwi-buzzer', 'wokwi-7segment',
+    'wokwi-led-bar-graph', 'wokwi-membrane-keypad', 'wokwi-ky-040', 'wokwi-biaxial-stepper',
+    'wokwi-stepper-motor', 'wokwi-relay', 'wokwi-relay-module',
+  ] },
+  { label: 'Sensors & Actuators', types: [
+    'wokwi-photoresistor-sensor', 'wokwi-ntc-temperature-sensor', 'wokwi-gas-sensor', 'wokwi-flame-sensor',
+    'wokwi-small-sound-sensor', 'wokwi-big-sound-sensor', 'wokwi-heart-beat-sensor', 'wokwi-pir-motion-sensor',
+    'wokwi-servo', 'wokwi-dht22', 'wokwi-hc-sr04', 'wokwi-neopixel', 'wokwi-neopixel-matrix',
+    'wokwi-led-ring', 'wokwi-hx711', 'wokwi-ir-receiver',
+  ] },
+  { label: 'Displays', types: ['wokwi-lcd1602', 'wokwi-lcd2004', 'wokwi-ssd1306', 'wokwi-ili9341'] },
+  { label: 'I2C Modules', types: ['wokwi-ds1307', 'wokwi-mpu6050'] },
+];
+
+type ControlKind = 'press' | 'toggle' | 'slider' | 'trigger';
+interface ControlSpec { name: string; kind: ControlKind; label: string; min?: number; max?: number; step?: number; default?: number; value?: number }
+/** Which control()s each part type actually implements (grepped from src/parts/*.ts control(name, …) -
+ *  not guessed). Intentionally omits parts with no control() (servo, displays, ds1307, resistor, …). */
+const CONTROLS: Record<string, ControlSpec[]> = {
+  'wokwi-pushbutton': [{ name: 'pressed', kind: 'press', label: 'Press' }],
+  'wokwi-pushbutton-6mm': [{ name: 'pressed', kind: 'press', label: 'Press' }],
+  'wokwi-slide-switch': [{ name: 'value', kind: 'toggle', label: 'On' }],
+  'wokwi-tilt-switch': [{ name: 'tilted', kind: 'toggle', label: 'Tilted' }],
+  'wokwi-dip-switch-8': Array.from({ length: 8 }, (_, i) => ({ name: String(i + 1), kind: 'toggle' as const, label: `${i + 1}` })),
+  'wokwi-potentiometer': [{ name: 'value', kind: 'slider', label: 'Value', min: 0, max: 1023, default: 0 }],
+  'wokwi-slide-potentiometer': [{ name: 'value', kind: 'slider', label: 'Value', min: 0, max: 1023, default: 0 }],
+  'wokwi-analog-joystick': [
+    { name: 'x', kind: 'slider', label: 'X', min: -1, max: 1, step: 0.05, default: 0 },
+    { name: 'y', kind: 'slider', label: 'Y', min: -1, max: 1, step: 0.05, default: 0 },
+    { name: 'pressed', kind: 'toggle', label: 'Press' },
+  ],
+  'wokwi-photoresistor-sensor': [{ name: 'lux', kind: 'slider', label: 'Lux', min: 0, max: 1000, default: 500 }],
+  'wokwi-ntc-temperature-sensor': [{ name: 'temperature', kind: 'slider', label: '°C', min: -20, max: 100, default: 24 }],
+  'wokwi-gas-sensor': [{ name: 'ppm', kind: 'slider', label: 'PPM', min: 0, max: 10000, default: 400 }],
+  'wokwi-flame-sensor': [{ name: 'intensity', kind: 'slider', label: 'Intensity', min: 0, max: 100, default: 0 }],
+  'wokwi-small-sound-sensor': [{ name: 'level', kind: 'slider', label: 'Level', min: 0, max: 100, default: 0 }],
+  'wokwi-big-sound-sensor': [{ name: 'level', kind: 'slider', label: 'Level', min: 0, max: 100, default: 0 }],
+  'wokwi-heart-beat-sensor': [{ name: 'level', kind: 'slider', label: 'Level', min: 0, max: 100, default: 50 }],
+  'wokwi-pir-motion-sensor': [{ name: 'motion', kind: 'toggle', label: 'Motion' }],
+  'wokwi-dht22': [
+    { name: 'temperature', kind: 'slider', label: '°C', min: -40, max: 80, default: 24 },
+    { name: 'humidity', kind: 'slider', label: 'RH%', min: 0, max: 100, default: 40 },
+  ],
+  'wokwi-hc-sr04': [{ name: 'distance', kind: 'slider', label: 'cm', min: 2, max: 400, default: 400 }],
+  'wokwi-hx711': [{ name: 'weight', kind: 'slider', label: 'Weight', min: -1000, max: 1000, default: 0 }],
+  'wokwi-ky-040': [
+    { name: 'pressed', kind: 'toggle', label: 'Press' },
+    { name: 'rotate', kind: 'trigger', label: '⟲ CCW', value: -1 },
+    { name: 'rotate', kind: 'trigger', label: '⟳ CW', value: 1 },
+  ],
+  // KEYS4 layout must match src/parts/basic.ts's `keypad` factory exactly (row-major, 4 cols).
+  'wokwi-membrane-keypad': [...'123A456B789C*0#D'].map((k) => ({ name: `key:${k}`, kind: 'press' as const, label: k })),
+  'wokwi-mpu6050': [
+    { name: 'accelX', kind: 'slider', label: 'AccelX', min: -16, max: 16, step: 0.1, default: 0 },
+    { name: 'accelY', kind: 'slider', label: 'AccelY', min: -16, max: 16, step: 0.1, default: 0 },
+    { name: 'accelZ', kind: 'slider', label: 'AccelZ', min: -16, max: 16, step: 0.1, default: 1 },
+    { name: 'rotationX', kind: 'slider', label: 'GyroX', min: -2000, max: 2000, default: 0 },
+    { name: 'rotationY', kind: 'slider', label: 'GyroY', min: -2000, max: 2000, default: 0 },
+    { name: 'rotationZ', kind: 'slider', label: 'GyroZ', min: -2000, max: 2000, default: 0 },
+    { name: 'temperature', kind: 'slider', label: '°C', min: -40, max: 85, default: 24 },
+  ],
+};
+const controlState = new Map<string, number>();
 
 let projectId = '';
 let diagram: Diagram = { parts: [], connections: [] };
@@ -120,18 +194,53 @@ async function renderTabs() {
   await selectFile(files.includes('sketch/sketch.ino') ? 'sketch/sketch.ino' : files[0]);
 }
 
+function partLabel(t: string): string {
+  return t.replace(/^wokwi-/, '').replace(/^circuitlab-/, '').split('-').map((w) => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+}
+
+function paletteButton(t: string): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.textContent = partLabel(t);
+  btn.title = t;
+  btn.draggable = true;
+  btn.addEventListener('dragstart', (e) => e.dataTransfer?.setData('text/plain', t));
+  btn.addEventListener('click', () => addPartAt(t, canvas.scrollLeft + canvas.clientWidth / 2, canvas.scrollTop + canvas.clientHeight / 2));
+  return btn;
+}
+
 async function renderPalette() {
   const types = await api<string[]>('/parts');
+  const addable = new Set(types.filter((t) => !t.startsWith('wokwi-arduino-')));
   paletteEl.innerHTML = '';
-  for (const t of types.filter((t) => !t.startsWith('wokwi-arduino-'))) {
-    const label = t.replace(/^wokwi-/, '').split('-').map((w) => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.title = t;
-    btn.draggable = true;
-    btn.addEventListener('dragstart', (e) => e.dataTransfer?.setData('text/plain', t));
-    btn.addEventListener('click', () => addPartAt(t, canvas.scrollLeft + canvas.clientWidth / 2, canvas.scrollTop + canvas.clientHeight / 2));
-    paletteEl.appendChild(btn);
+  const grouped = new Set<string>();
+  for (const { label, types: group } of CATEGORIES) {
+    const present = group.filter((t) => addable.has(t));
+    present.forEach((t) => grouped.add(t));
+    if (present.length === 0) continue;
+    const section = document.createElement('div');
+    section.className = 'palette-section';
+    const h = document.createElement('h4');
+    h.textContent = label;
+    section.appendChild(h);
+    const row = document.createElement('div');
+    row.className = 'palette-row';
+    for (const t of present) row.appendChild(paletteButton(t));
+    section.appendChild(row);
+    paletteEl.appendChild(section);
+  }
+  // Anything the catalog added that isn't in CATEGORIES yet still shows up, just ungrouped.
+  const rest = [...addable].filter((t) => !grouped.has(t));
+  if (rest.length) {
+    const section = document.createElement('div');
+    section.className = 'palette-section';
+    const h = document.createElement('h4');
+    h.textContent = 'Other';
+    section.appendChild(h);
+    const row = document.createElement('div');
+    row.className = 'palette-row';
+    for (const t of rest) row.appendChild(paletteButton(t));
+    section.appendChild(row);
+    paletteEl.appendChild(section);
   }
 }
 
@@ -201,6 +310,7 @@ async function renderAll() {
     const el = els.get(spec.id);
     if (!el) continue;
     const pins = (el as unknown as { pinInfo?: PinInfo[] }).pinInfo ?? [];
+    if (pins.length === 0) console.warn(`Part "${spec.id}" (${spec.type}) rendered with zero pins - wiring won't be clickable for it.`);
     partMeta.set(spec.id, { w: el.offsetWidth, h: el.offsetHeight, pins });
   }
   emptyHint.style.display = diagram.parts.length <= 1 ? 'flex' : 'none';
@@ -222,13 +332,18 @@ function renderOverlays() {
       const pos = computePinPos(spec, meta, p);
       const key = `${spec.id}:${p.name}`;
       pinPositions.set(key, pos);
+      // Bigger invisible hit target + smaller visible dot inside it, same pattern as wires'
+      // fat invisible hit-line + thin visible line - pins are a small, easy-to-miss click target otherwise.
+      const hit = document.createElement('div');
+      hit.className = 'pin-hit';
+      hit.style.left = `${pos.x}px`;
+      hit.style.top = `${pos.y}px`;
+      hit.title = key;
       const dot = document.createElement('div');
       dot.className = 'pin-dot' + (pendingWire?.from === key ? ' active' : '');
-      dot.style.left = `${pos.x}px`;
-      dot.style.top = `${pos.y}px`;
-      dot.title = key;
-      dot.addEventListener('click', (e) => { e.stopPropagation(); onPinClick(key, pos); });
-      pinsLayer.appendChild(dot);
+      hit.appendChild(dot);
+      hit.addEventListener('click', (e) => { e.stopPropagation(); onPinClick(key, pos); });
+      pinsLayer.appendChild(hit);
     }
   }
 
@@ -257,6 +372,62 @@ function renderOverlays() {
   updateToolbar();
 }
 
+/** POST a control value; silently ignored if no simulation is running (same as the old pushbutton-only code did). */
+function sendControl(partId: string, name: string, value: number) {
+  return api(`/projects/${projectId}/control`, { method: 'POST', body: JSON.stringify({ partId, name, value }) }).catch(() => {});
+}
+
+function controlStateKey(partId: string, ctrl: ControlSpec) { return `${partId}:${ctrl.name}:${ctrl.label}`; }
+
+/** Renders one control (button/toggle/slider) for the selection toolbar. Value tracking is purely
+ *  client-side (there's no generic "read a control's current value" API) - it reflects what this
+ *  UI itself has sent, not necessarily ground truth if driven from elsewhere (e.g. MCP). */
+function controlWidget(partId: string, ctrl: ControlSpec): HTMLElement {
+  const key = controlStateKey(partId, ctrl);
+  if (ctrl.kind === 'press') {
+    const btn = document.createElement('button');
+    btn.textContent = ctrl.label;
+    btn.onclick = () => { sendControl(partId, ctrl.name, 1); setTimeout(() => sendControl(partId, ctrl.name, 0), 150); };
+    return btn;
+  }
+  if (ctrl.kind === 'trigger') {
+    const btn = document.createElement('button');
+    btn.textContent = ctrl.label;
+    btn.onclick = () => sendControl(partId, ctrl.name, ctrl.value ?? 1);
+    return btn;
+  }
+  if (ctrl.kind === 'toggle') {
+    const on = !!(controlState.get(key) ?? 0);
+    const btn = document.createElement('button');
+    btn.textContent = `${ctrl.label}: ${on ? 'On' : 'Off'}`;
+    btn.classList.toggle('active', on);
+    btn.onclick = () => { const v = on ? 0 : 1; controlState.set(key, v); sendControl(partId, ctrl.name, v); updateToolbar(); };
+    return btn;
+  }
+  // slider
+  if (!controlState.has(key)) controlState.set(key, ctrl.default ?? 0);
+  const wrap = document.createElement('label');
+  wrap.className = 'ctrl-slider';
+  const span = document.createElement('span');
+  const v = controlState.get(key)!;
+  span.textContent = `${ctrl.label} ${v}`;
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(ctrl.min ?? 0);
+  input.max = String(ctrl.max ?? 100);
+  input.step = String(ctrl.step ?? 1);
+  input.value = String(v);
+  input.oninput = () => {
+    const nv = Number(input.value);
+    controlState.set(key, nv);
+    span.textContent = `${ctrl.label} ${nv}`;
+    sendControl(partId, ctrl.name, nv);
+  };
+  wrap.appendChild(span);
+  wrap.appendChild(input);
+  return wrap;
+}
+
 function updateToolbar() {
   toolbar.innerHTML = '';
   if (selectedPart) {
@@ -275,6 +446,7 @@ function updateToolbar() {
       delBtn.onclick = () => deleteSelectedPart();
       toolbar.appendChild(delBtn);
     }
+    for (const ctrl of CONTROLS[spec.type] ?? []) toolbar.appendChild(controlWidget(spec.id, ctrl));
   } else if (selectedWire) {
     const [a, b] = selectedWire;
     const pa = pinPositions.get(a), pb = pinPositions.get(b);
@@ -324,7 +496,7 @@ function onPinClick(key: string, pos: Point) {
   renderOverlays();
   api(`/projects/${projectId}/connections`, { method: 'POST', body: JSON.stringify({ from, to }) })
     .then(reloadDiagram)
-    .catch((e) => showMsg(e instanceof Error ? e.message : String(e), true));
+    .catch((e) => { console.error('Failed to create wire', from, '->', to, e); showMsg(e instanceof Error ? e.message : String(e), true); });
 }
 
 canvasInner.addEventListener('pointermove', (e) => {
@@ -414,10 +586,13 @@ function attachDrag(el: HTMLElement, spec: DiagramPart) {
           .catch((err) => showMsg(err instanceof Error ? err.message : String(err), true));
       } else {
         selectPart(spec.id);
-        if (el.tagName.toLowerCase().includes('pushbutton')) {
-          api(`/projects/${projectId}/control`, { method: 'POST', body: JSON.stringify({ partId: spec.id, name: 'pressed', value: 1 }) })
-            .then(() => setTimeout(() => api(`/projects/${projectId}/control`, { method: 'POST', body: JSON.stringify({ partId: spec.id, name: 'pressed', value: 0 }) }), 150))
-            .catch(() => { /* no running simulation - ignore */ });
+        // Click-to-press on the part itself, but only when it has exactly ONE control and it's a
+        // momentary press (pushbutton) - unambiguous. Multi-control parts (keypad, ky-040, …) only
+        // expose their controls via the selection toolbar, since clicking the part body is ambiguous there.
+        const ctrls = CONTROLS[spec.type] ?? [];
+        if (ctrls.length === 1 && ctrls[0].kind === 'press') {
+          sendControl(spec.id, ctrls[0].name, 1);
+          setTimeout(() => sendControl(spec.id, ctrls[0].name, 0), 150);
         }
       }
     };
@@ -469,9 +644,18 @@ function connectWS() {
   };
 }
 
+/** Reflects the diagram's actual board part in the "Board:" select, best-effort (a hand-edited
+ *  diagram.json could reference a board type not in this dropdown's option list - then it just
+ *  shows nothing selected, which is an acceptable edge case). */
+function syncBoardSelect() {
+  const board = diagram.parts.find((p) => p.id === 'board')?.type;
+  if (board) boardSelect.value = board;
+}
+
 async function reloadDiagram() {
   diagram = await api<Diagram>(`/projects/${projectId}/diagram`);
   diagramJson.value = JSON.stringify(diagram, null, 2);
+  syncBoardSelect();
   await renderAll();
 }
 
@@ -483,6 +667,7 @@ async function selectProject(id: string) {
   setPendingWire(null);
   diagram = await api<Diagram>(`/projects/${id}/diagram`);
   diagramJson.value = JSON.stringify(diagram, null, 2);
+  syncBoardSelect();
   await renderAll();
   await renderTabs();
   connectWS();
@@ -524,6 +709,56 @@ $<HTMLInputElement>('serial-input').addEventListener('keydown', async (e) => {
   await api(`/projects/${projectId}/serial`, { method: 'POST', body: JSON.stringify({ text: input.value + '\n' }) });
   input.value = '';
 });
+
+// Switch the CURRENT project's board (distinct from #new-board, which only affects "New").
+boardSelect.onchange = async () => {
+  const board = boardSelect.value;
+  try {
+    await api(`/projects/${projectId}/board`, { method: 'PATCH', body: JSON.stringify({ board }) });
+    status.textContent = 'board switched';
+    await reloadDiagram(); // board part's type changed -> re-render with the new graphic/pins
+    const opt = [...projectSelect.options].find((o) => o.value === projectId);
+    if (opt) opt.textContent = `${projectId.slice(0, 8)} (${board.replace('wokwi-arduino-', '')})`;
+  } catch (e) { showMsg(e instanceof Error ? e.message : String(e), true); syncBoardSelect(); }
+};
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsText(file);
+  });
+}
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? ''); // strip the "data:...;base64," prefix
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+$('import-project').onclick = () => importInput.click();
+importInput.onchange = async () => {
+  const fileList = [...(importInput.files ?? [])];
+  importInput.value = ''; // allow re-selecting the same file(s) later
+  if (fileList.length === 0) return;
+  try {
+    let payload: { files?: Record<string, string>; zip?: string };
+    if (fileList.length === 1 && fileList[0].name.toLowerCase().endsWith('.zip')) {
+      payload = { zip: await readFileAsBase64(fileList[0]) };
+    } else {
+      const files: Record<string, string> = {};
+      for (const f of fileList) files[f.name] = await readFileAsText(f);
+      payload = { files };
+    }
+    const { id } = await api<{ id: string }>('/projects/import', { method: 'POST', body: JSON.stringify(payload) });
+    await loadProjects();
+    await selectProject(id);
+    showMsg(`Imported as project ${id.slice(0, 8)}`);
+  } catch (e) { console.error('Import failed', e); showMsg(e instanceof Error ? e.message : String(e), true); }
+};
 
 renderPalette();
 loadProjects();

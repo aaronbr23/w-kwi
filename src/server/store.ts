@@ -50,7 +50,7 @@ export async function deleteProject(id: string) {
   await fs.rm(dir(id), { recursive: true, force: true });
 }
 
-function filePath(id: string, name: string): string {
+export function filePath(id: string, name: string): string {
   const base = dir(id);
   const p = path.join(base, name);
   // path.join() already collapses "..", so this actually rejects anything that escapes the

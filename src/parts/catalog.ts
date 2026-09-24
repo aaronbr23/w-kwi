@@ -5,6 +5,7 @@ import * as basic from './basic.ts';
 import * as timing from './timing.ts';
 import * as displays from './displays.ts';
 import * as i2c from './i2c.ts';
+import { breadboard } from './breadboard.ts';
 
 export const CATALOG: Record<string, PartFactory> = {
   'wokwi-led': basic.led,
@@ -50,4 +51,6 @@ export const CATALOG: Record<string, PartFactory> = {
   // No @wokwi/elements visual for these yet (simulated only); type strings are ours, not upstream's.
   'wokwi-relay': basic.relay,
   'wokwi-relay-module': basic.relayModule,
+  // Not a wokwi- type: no @wokwi/elements graphic exists for this at all (see breadboard-element.ts).
+  'circuitlab-breadboard': breadboard,
 };

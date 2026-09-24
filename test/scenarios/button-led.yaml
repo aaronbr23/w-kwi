@@ -1,0 +1,21 @@
+name: pressing btn1 lights led1 (wired straight to 5V/GND, no firmware involved)
+steps:
+  - expect-pin:
+      pin: "led1:A"
+      value: low
+  - set-control:
+      part: btn1
+      control: pressed
+      value: 1
+  - expect-pin:
+      pin: "led1:A"
+      value: high
+      timeout: 500
+  - set-control:
+      part: btn1
+      control: pressed
+      value: 0
+  - expect-pin:
+      pin: "led1:A"
+      value: low
+      timeout: 500

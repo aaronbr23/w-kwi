@@ -1,6 +1,8 @@
 // Minimal JSON REST API for the web UI. No framework: a handful of routes, plain node:http.
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as core from './core.ts';
+import { runScenario } from './scenario.ts';
+import { unzip } from './zip.ts';
 
 async function body(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -29,6 +31,11 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, url: 
 
     if (parts[0] === 'projects' && parts.length === 2) {
       const id = parts[1];
+      if (id === 'import' && method === 'POST') {
+        const b = await body(req) as { files?: Record<string, string>; zip?: string };
+        const files = b.zip ? unzip(Buffer.from(b.zip, 'base64')) : (b.files ?? {});
+        return ok(res, { id: await core.importProject(files) });
+      }
       if (method === 'DELETE') { core.stopSimulation(id); await core.store.deleteProject(id); return ok(res, { ok: true }); }
     }
 
@@ -45,7 +52,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, url: 
         if (method === 'GET') return ok(res, await core.store.getDiagram(id));
         if (method === 'PUT') { await core.store.setDiagram(id, await body(req) as never); return ok(res, { ok: true }); }
       }
+      if (action === 'board' && method === 'PATCH') { const b = await body(req) as { board: string }; await core.setBoard(id, b.board); return ok(res, { ok: true }); }
       if (action === 'compile' && method === 'POST') return ok(res, await core.compileProject(id));
+      if (action === 'scenario' && method === 'POST') { const b = await body(req) as { yaml: string }; return ok(res, await runScenario(id, b.yaml)); }
       if (action === 'start' && method === 'POST') { await core.startSimulation(id); return ok(res, { ok: true }); }
       if (action === 'stop' && method === 'POST') { core.stopSimulation(id); return ok(res, { ok: true }); }
       if (action === 'state' && method === 'GET') return ok(res, core.getSession(id).state());
