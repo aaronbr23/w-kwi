@@ -113,9 +113,23 @@ export async function setPartAttr(id: string, partId: string, name: string, valu
   await store.setDiagram(id, d);
 }
 
+/** Zip exports commonly wrap everything in one top-level folder (e.g. "myproject/sketch.ino",
+ *  "myproject/diagram.json"). Strip a single common folder prefix so diagram.json/libraries.txt/
+ *  *.ino still land at the paths the rest of importProject looks for. No-op if there's no single
+ *  shared folder (e.g. files already flat, or a genuine multi-root upload). */
+function stripCommonPrefix(files: Record<string, string>): Record<string, string> {
+  const names = Object.keys(files);
+  const slash = names[0]?.indexOf('/') ?? -1;
+  if (slash < 0) return files;
+  const prefix = names[0].slice(0, slash + 1);
+  if (!names.every((n) => n.startsWith(prefix))) return files;
+  return Object.fromEntries(names.map((n) => [n.slice(prefix.length), files[n]]));
+}
+
 /** Import a project from an uploaded file set (see api.ts POST /projects/import for the shape).
  *  Board comes from the uploaded diagram.json if present and valid, else defaults to an Uno. */
-export async function importProject(files: Record<string, string>): Promise<string> {
+export async function importProject(rawFiles: Record<string, string>): Promise<string> {
+  const files = stripCommonPrefix(rawFiles);
   let board = 'wokwi-arduino-uno';
   let diagramValid = false;
   const diagramRaw = files['diagram.json'];
