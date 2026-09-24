@@ -36,13 +36,23 @@ localhost.
 - Compile via `arduino-cli` (baked into the image), run, read/write serial, read pin voltages,
   drive part controls (press a button, turn a knob, set a sensor value), screenshot displays,
   capture a VCD logic trace — all via MCP tools or the plain JSON `/api`.
+- Visual diagram editor in the browser: drag parts from the palette onto the canvas, click a pin
+  then another pin to wire them, drag to move, select a part/wire for a rotate/delete toolbar.
+
+## What's already covered without dedicated UI
+
+- Library Manager: `libraries.txt` (one Arduino library name per line) is just a project file —
+  edit it in the same tab bar as `sketch.ino`, `compile` runs `arduino-cli lib install` for each
+  line before building. No separate "Library Manager" panel needed.
 
 ## Not yet built
 
-- RP2040 / ESP32 / STM32 boards (planned; ESP32/STM32 need a QEMU/Renode bridge, see the plan).
-- Scenario runner (YAML test steps) and Library Manager UI.
-- Drag/wire diagram editor in the browser — for now, wiring is done via MCP tools
-  (`add_part`/`connect`) or by editing `diagram.json` directly ("Edit diagram.json" button).
+- RP2040 / ESP32 / STM32 boards. ESP32/STM32 need a QEMU/Renode subprocess bridge (see the plan).
+  RP2040 (`rp2040js`) runs in-process like AVR, but the only `@wokwi/elements`-renderable RP2040
+  board (Nano RP2040 Connect) defaults `Serial` to USB-CDC, not UART — bridging that plus the
+  `arduino-pico` core's multicore boot handshake is real, unverified-here work; see
+  [docs/arc42/architektur.md](./docs/arc42/architektur.md) section 11.
+- Scenario runner (YAML test steps, e.g. for CI regression checks).
 
 ## Architecture
 

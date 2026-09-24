@@ -534,9 +534,15 @@ QEMU- bzw. Renode-**Subprozesse** laufen. Der noch nicht gelöste Teil ist die *
 zwischen Subprozess und der bestehenden `Netlist`** — weder QEMUs qtest-Protokoll noch Renodes
 Monitor-Sockets sind an einen In-Process-`Netlist.drive()`/`listen()`-Mechanismus wie bei AVR
 angebunden. Der Plan nennt das selbst als größten Restaufwand und fordert vorab einen
-1–2-tägigen Spike. RP2040 ist demgegenüber risikoärmer, weil `rp2040js` (bereits eine
-Abhängigkeit) wie `avr8js` in-process läuft und derselben Anbindungslogik wie `AVRBoard` folgen
-kann.
+1–2-tägigen Spike. RP2040 läuft zwar wie `avr8js` in-process (keine Subprozess-Bridge nötig) und
+ist damit *architektonisch* risikoärmer, hat sich aber bei näherer Prüfung als eigener Aufwand
+herausgestellt: `rp2040js` braucht das reale RP2040-Bootrom (BSD-3-Clause, verfügbar über
+`wokwi/rp2040js`, kein Blocker), aber das einzige über `@wokwi/elements` darstellbare RP2040-Board
+(Nano RP2040 Connect) hat `Serial` standardmäßig auf USB-CDC statt UART — das bräuchte eine eigene
+Bridge zwischen `RPUSBController` und der Serial-API, plus den Multicore-Boot-Handshake des
+`arduino-pico`-Cores über SIO-FIFO. Nicht mit vergleichbarer Sicherheit verifizierbar wie der
+Hand-Assembler-Test für AVR (`test/avr.test.ts`) in vertretbarem Aufwand — bewusst zurückgestellt,
+um keine halbfunktionierende Board-Unterstützung als fertig auszugeben.
 
 ### Dokumentierte bewusste Abkürzungen (`ponytail:`-Kommentare)
 
