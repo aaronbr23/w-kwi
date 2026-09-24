@@ -53,4 +53,8 @@ export const CATALOG: Record<string, PartFactory> = {
   'wokwi-relay-module': basic.relayModule,
   // Not a wokwi- type: no @wokwi/elements graphic exists for this at all (see breadboard-element.ts).
   'circuitlab-breadboard': breadboard,
+  // Aliases so diagrams imported from real Wokwi projects (which use these type strings) still
+  // render/simulate, even though our model is a fixed half-size board regardless of the alias.
+  'wokwi-breadboard-half': breadboard,
+  'wokwi-breadboard-full': breadboard,
 };

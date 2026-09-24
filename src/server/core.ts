@@ -126,28 +126,49 @@ function stripCommonPrefix(files: Record<string, string>): Record<string, string
   return Object.fromEntries(names.map((n) => [n.slice(prefix.length), files[n]]));
 }
 
+// Real Wokwi diagram.json files don't necessarily name the board part "board" (any id is legal,
+// e.g. "esp", "uno1") - but every other part of this codebase assumes id === 'board'. Recognize a
+// board-ish part by its type instead, for import only.
+const BOARD_TYPE_RE = /^wokwi-(arduino|esp32|esp8266|nano-rp2040|rpi-pico|stm32)/;
+
+function rewriteEndpoint(ep: string, oldId: string, newId: string): string {
+  return ep === oldId || ep.startsWith(oldId + ':') ? newId + ep.slice(oldId.length) : ep;
+}
+
+/** Normalizes an imported diagram so the rest of the app's id==='board' assumption holds:
+ *  finds the board-ish part (by type, any id), renames it to 'board' and rewrites connections
+ *  to match, swapping in a supported fallback type (Uno) if the original board isn't simulatable
+ *  here (e.g. ESP32). Inserts a fresh Uno board if the diagram has no board-ish part at all. */
+function normalizeImportedDiagram(d: Diagram): Diagram {
+  const boardPart = d.parts.find((p) => BOARD_TYPE_RE.test(p.type));
+  if (!boardPart) {
+    console.log('importProject: no board-like part found in uploaded diagram.json, inserting a default Uno');
+    return { ...d, parts: [{ type: 'wokwi-arduino-uno', id: 'board', top: 0, left: 0, attrs: {} }, ...d.parts] };
+  }
+  const oldId = boardPart.id;
+  if (!BOARD_TYPES.includes(boardPart.type)) {
+    console.log(`importProject: board type "${boardPart.type}" isn't supported here, swapping to wokwi-arduino-uno (wiring to it will need adjusting)`);
+    boardPart.type = 'wokwi-arduino-uno';
+  }
+  if (oldId === 'board') return d;
+  boardPart.id = 'board';
+  return { ...d, connections: d.connections.map(([a, b, ...rest]) => [rewriteEndpoint(a, oldId, 'board'), rewriteEndpoint(b, oldId, 'board'), ...rest] as Diagram['connections'][number]) };
+}
+
 /** Import a project from an uploaded file set (see api.ts POST /projects/import for the shape).
  *  Board comes from the uploaded diagram.json if present and valid, else defaults to an Uno. */
 export async function importProject(rawFiles: Record<string, string>): Promise<string> {
   const files = stripCommonPrefix(rawFiles);
-  let board = 'wokwi-arduino-uno';
-  let diagramValid = false;
+  let normalizedDiagram: Diagram | undefined;
   const diagramRaw = files['diagram.json'];
   if (diagramRaw !== undefined) {
-    try {
-      const d = JSON.parse(diagramRaw) as Diagram;
-      diagramValid = true;
-      const t = d.parts?.find((p) => p.id === 'board')?.type;
-      if (t && BOARD_TYPES.includes(t)) board = t;
-      else if (t) console.log(`importProject: unknown board type "${t}" in uploaded diagram.json, defaulting to ${board}`);
-    } catch {
-      console.log('importProject: diagram.json in upload is not valid JSON, ignoring it and starting from a default diagram');
-    }
+    try { normalizedDiagram = normalizeImportedDiagram(JSON.parse(diagramRaw) as Diagram); }
+    catch { console.log('importProject: diagram.json in upload is not valid JSON, ignoring it and starting from a default diagram'); }
   }
-  const id = await store.createProject(board); // scaffolds default sketch/diagram.json/libraries.txt
+  const id = await store.createProject(normalizedDiagram?.parts.find((p) => p.id === 'board')?.type ?? 'wokwi-arduino-uno');
+  if (normalizedDiagram) await store.setDiagram(id, normalizedDiagram);
   for (const [name, content] of Object.entries(files)) {
-    if (name === 'diagram.json') { if (diagramValid) await store.writeFile(id, 'diagram.json', content); continue; }
-    if (name === 'libraries.txt') { await store.writeFile(id, 'libraries.txt', content); continue; }
+    if (name === 'diagram.json' || name === 'libraries.txt') { if (name === 'libraries.txt') await store.writeFile(id, name, content); continue; }
     if (!name.includes('/') && name.endsWith('.ino')) { await store.writeFile(id, store.SKETCH_MAIN, content); continue; }
     await store.writeFile(id, name.startsWith('sketch/') ? name : `sketch/${name}`, content);
   }

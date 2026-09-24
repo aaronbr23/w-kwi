@@ -56,6 +56,7 @@
     .part { position: absolute; pointer-events: auto; cursor: grab; }
     .part.dragging { cursor: grabbing; opacity: 0.85; }
     .part.selected { outline: 2px solid var(--accent); outline-offset: 3px; filter: drop-shadow(0 0 7px rgba(77, 163, 255, 0.6)); }
+    .part-unknown { display: flex; align-items: center; justify-content: center; text-align: center; min-width: 90px; min-height: 40px; padding: 4px 8px; box-sizing: border-box; background: repeating-linear-gradient(45deg, #3a2a1a, #3a2a1a 6px, #4a3520 6px, #4a3520 12px); border: 1px dashed var(--amber); border-radius: 4px; color: var(--amber); font-size: 10px; font-family: monospace; }
 
     /* Bigger invisible hit target around a smaller visible dot - same idea as the wires' fat
        invisible hit-line + thin visible line, so pins are easier to click at 1:1 zoom. */

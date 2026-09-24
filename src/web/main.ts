@@ -178,7 +178,8 @@ async function selectFile(name: string) {
   currentFile = name;
   const { content } = await api<{ content: string }>(`/projects/${projectId}/file?name=${encodeURIComponent(name)}`);
   editor.setValue(content);
-  monaco.editor.setModelLanguage(editor.getModel()!, name.endsWith('.json') || name.endsWith('.txt') ? 'plaintext' : 'cpp');
+  const language = name.endsWith('.json') ? 'json' : name.endsWith('.txt') ? 'plaintext' : 'cpp';
+  monaco.editor.setModelLanguage(editor.getModel()!, language);
   [...tabs.children].forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.name === name));
 }
 
@@ -210,7 +211,10 @@ function paletteButton(t: string): HTMLButtonElement {
 
 async function renderPalette() {
   const types = await api<string[]>('/parts');
-  const addable = new Set(types.filter((t) => !t.startsWith('wokwi-arduino-')));
+  // wokwi-breadboard-half/full are import-compatibility aliases for circuitlab-breadboard (see
+  // catalog.ts) - hide the duplicates, "Breadboard" already covers picking one from the palette.
+  const HIDDEN = new Set(['wokwi-breadboard-half', 'wokwi-breadboard-full']);
+  const addable = new Set(types.filter((t) => !t.startsWith('wokwi-arduino-') && !HIDDEN.has(t)));
   paletteEl.innerHTML = '';
   const grouped = new Set<string>();
   for (const { label, types: group } of CATEGORIES) {
@@ -290,6 +294,14 @@ async function renderAll() {
     try { el = document.createElement(spec.type); }
     catch { continue; } // spec.type isn't a valid tag name (e.g. hand-edited diagram JSON); skip it
     el.className = 'part';
+    if (!customElements.get(spec.type)) {
+      // Unknown type (e.g. imported from a real Wokwi project using a part we don't have a
+      // graphic/model for) would otherwise render as an invisible 0x0 element - show it as a
+      // visible placeholder instead so it's at least not silently missing from the canvas.
+      el.classList.add('part-unknown');
+      el.textContent = spec.type;
+      el.title = `Unsupported part type "${spec.type}" - not in the catalog, can't be simulated or wired.`;
+    }
     el.style.top = `${spec.top ?? 0}px`;
     el.style.left = `${spec.left ?? 0}px`;
     if (spec.rotate) el.style.transform = `rotate(${spec.rotate}deg)`;

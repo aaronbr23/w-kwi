@@ -50,3 +50,7 @@ export class BreadboardElement extends HTMLElement {
 }
 
 customElements.define('circuitlab-breadboard', BreadboardElement);
+// Aliases matching real Wokwi projects' type strings (see catalog.ts) - customElements.define()
+// rejects reusing the same class under multiple tags, so these are trivial subclasses.
+customElements.define('wokwi-breadboard-half', class extends BreadboardElement {});
+customElements.define('wokwi-breadboard-full', class extends BreadboardElement {});
