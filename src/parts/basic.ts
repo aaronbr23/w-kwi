@@ -274,22 +274,40 @@ export const rotaryEncoder: PartFactory = (ctx, spec) => {
   };
 };
 
-/** Bipolar stepper: detects full/half steps from coil polarity. */
-export const stepper: PartFactory = (ctx, spec) => {
+// 8 half-step phases around the circle, from two coils' polarity signs.
+const PHASE_TABLE: Record<string, number> = { '1,0': 0, '1,1': 1, '0,1': 2, '-1,1': 3, '-1,0': 4, '-1,-1': 5, '0,-1': 6, '1,-1': 7 };
+
+/** Tracks one bipolar coil pair's half-step phase and accumulates an angle from it. */
+function coilAngle(ctx: SimContext, spec: DiagramPart, pins: [string, string, string, string]) {
   const V = volts(ctx, spec);
   let pos = 0, last = -1;
-  const phaseOf = () => {
-    const a = Math.sign(diff(V('A+'), V('A-'))), b = Math.sign(diff(V('B+'), V('B-')));
-    // 8 half-step phases around the circle
-    const table: Record<string, number> = { '1,0': 0, '1,1': 1, '0,1': 2, '-1,1': 3, '-1,0': 4, '-1,-1': 5, '0,-1': 6, '1,-1': 7 };
-    return table[`${a},${b}`] ?? -1;
-  };
-  watch(ctx, spec, ['A+', 'A-', 'B+', 'B-'], () => {
-    const p = phaseOf();
+  const [aPos, aNeg, bPos, bNeg] = pins;
+  watch(ctx, spec, pins, () => {
+    const a = Math.sign(diff(V(aPos), V(aNeg))), b = Math.sign(diff(V(bPos), V(bNeg)));
+    const p = PHASE_TABLE[`${a},${b}`] ?? -1;
     if (p < 0) return;
     if (last >= 0) { let d = p - last; if (d > 4) d -= 8; if (d < -4) d += 8; pos += d; }
     last = p;
   });
-  return { state: () => ({ angle: ((pos * 0.9) % 360 + 360) % 360 }) };
+  return () => ((pos * 0.9) % 360 + 360) % 360;
+}
+
+/** Bipolar stepper motor (4 wires: A+/A-/B+/B-, one coil pair - matches @wokwi/elements' stepper-motor-element). */
+export const stepper: PartFactory = (ctx, spec) => {
+  const angle = coilAngle(ctx, spec, ['A+', 'A-', 'B+', 'B-']);
+  return { state: () => ({ angle: angle() }) };
 };
+
+/** Biaxial stepper (8 wires: two independent bipolar coil pairs driving two clock hands - real
+ *  @wokwi/elements pin names are A1+/A1-/B1+/B1- for the outer hand and A2+/A2-/B2+/B2- for the
+ *  inner hand, NOT the plain A+/A-/B+/B- that `stepper` above uses for the single-coil motor). */
+export const biaxialStepper: PartFactory = (ctx, spec) => {
+  const outer = coilAngle(ctx, spec, ['A1+', 'A1-', 'B1+', 'B1-']);
+  const inner = coilAngle(ctx, spec, ['A2+', 'A2-', 'B2+', 'B2-']);
+  return { state: () => ({ outerHandAngle: outer(), innerHandAngle: inner() }) };
+};
+
+/** wokwi-text: a cosmetic diagram annotation label. No pins, no electrical behavior - real Wokwi
+ *  projects use it purely for on-canvas notes (see src/web/main.ts's renderAll() for the rendering). */
+export const text: PartFactory = () => ({});
 

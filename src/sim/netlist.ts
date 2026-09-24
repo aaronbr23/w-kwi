@@ -1,5 +1,11 @@
 // Digital/analog net resolver. Endpoints are "partId:pin".
-// Pins named "X.<n>" are internally connected to "X" (e.g. GND.1, GND.2).
+// Pins named "X.<n>" (all-digit suffix, e.g. GND.1/GND.2) or "X.<word>" (all-letter suffix, e.g.
+// a pushbutton's 1.l/1.r) are internally connected to "X" - real @wokwi/elements graphics expose
+// both conventions for pins that are electrically the same node brought out to two physical spots.
+// Deliberately NOT a blanket "any suffix after the last dot": some real pin names are dotted for
+// an unrelated reason and must stay distinct, e.g. Arduino's "3.3V" pin (suffix "3V" is neither
+// all-digit nor all-letter, so it doesn't match and is untouched) - verified against every
+// `name: '...'` pinInfo entry shipped in node_modules/@wokwi/elements.
 // Drive levels: strong (outputs, power) > via resistor > weak (internal pull-ups) > floating (NaN).
 // ponytail: full value recompute per change, fine for <1000 endpoints; incremental if large circuits get slow.
 
@@ -10,7 +16,7 @@ const STRONG = 3, RESISTOR = 2, WEAK = 1;
 
 export function key(endpoint: string): string {
   const i = endpoint.indexOf(':');
-  return endpoint.slice(0, i) + ':' + endpoint.slice(i + 1).replace(/\.\d+$/, '');
+  return endpoint.slice(0, i) + ':' + endpoint.slice(i + 1).replace(/\.(?:\d+|[a-zA-Z]+)$/, '');
 }
 
 export class Netlist {

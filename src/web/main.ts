@@ -291,10 +291,16 @@ async function renderAll() {
   const created: HTMLElement[] = [];
   for (const spec of diagram.parts) {
     let el: HTMLElement;
-    try { el = document.createElement(spec.type); }
+    try { el = document.createElement(spec.type === 'wokwi-text' ? 'div' : spec.type); }
     catch { continue; } // spec.type isn't a valid tag name (e.g. hand-edited diagram JSON); skip it
     el.className = 'part';
-    if (!customElements.get(spec.type)) {
+    if (spec.type === 'wokwi-text') {
+      // Cosmetic diagram annotation, not an unrecognized part - show its actual label text (with
+      // line breaks preserved), not the type string, and don't flag it as "unknown"/zero-pin.
+      el.classList.add('part-text');
+      el.style.whiteSpace = 'pre';
+      el.textContent = spec.attrs?.text ?? '';
+    } else if (!customElements.get(spec.type)) {
       // Unknown type (e.g. imported from a real Wokwi project using a part we don't have a
       // graphic/model for) would otherwise render as an invisible 0x0 element - show it as a
       // visible placeholder instead so it's at least not silently missing from the canvas.
@@ -322,7 +328,8 @@ async function renderAll() {
     const el = els.get(spec.id);
     if (!el) continue;
     const pins = (el as unknown as { pinInfo?: PinInfo[] }).pinInfo ?? [];
-    if (pins.length === 0) console.warn(`Part "${spec.id}" (${spec.type}) rendered with zero pins - wiring won't be clickable for it.`);
+    // wokwi-text is a cosmetic label - it's SUPPOSED to have zero pins, not a warning-worthy surprise.
+    if (pins.length === 0 && spec.type !== 'wokwi-text') console.warn(`Part "${spec.id}" (${spec.type}) rendered with zero pins - wiring won't be clickable for it.`);
     partMeta.set(spec.id, { w: el.offsetWidth, h: el.offsetHeight, pins });
   }
   emptyHint.style.display = diagram.parts.length <= 1 ? 'flex' : 'none';

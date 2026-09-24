@@ -32,7 +32,7 @@ export const CATALOG: Record<string, PartFactory> = {
   'wokwi-led-bar-graph': basic.ledBarGraph,
   'wokwi-membrane-keypad': basic.keypad,
   'wokwi-ky-040': basic.rotaryEncoder,
-  'wokwi-biaxial-stepper': basic.stepper,
+  'wokwi-biaxial-stepper': basic.biaxialStepper,
   'wokwi-stepper-motor': basic.stepper,
   'wokwi-servo': timing.servo,
   'wokwi-dht22': timing.dht22,
@@ -51,10 +51,14 @@ export const CATALOG: Record<string, PartFactory> = {
   // No @wokwi/elements visual for these yet (simulated only); type strings are ours, not upstream's.
   'wokwi-relay': basic.relay,
   'wokwi-relay-module': basic.relayModule,
+  // Cosmetic annotation label, no pins/electrical behavior (see main.ts's renderAll() special-case).
+  'wokwi-text': basic.text,
   // Not a wokwi- type: no @wokwi/elements graphic exists for this at all (see breadboard-element.ts).
   'circuitlab-breadboard': breadboard,
-  // Aliases so diagrams imported from real Wokwi projects (which use these type strings) still
-  // render/simulate, even though our model is a fixed half-size board regardless of the alias.
+  // wokwi-breadboard is the real Wokwi type string (verified against a real diagram.json export).
+  // wokwi-breadboard-half/-full aren't real Wokwi types (no such component ships in @wokwi/elements
+  // at all) - kept as harmless aliases in case an older/guessed diagram used them.
+  'wokwi-breadboard': breadboard,
   'wokwi-breadboard-half': breadboard,
   'wokwi-breadboard-full': breadboard,
 };

@@ -1,9 +1,10 @@
 // Custom element for <circuitlab-breadboard> - there is no @wokwi/elements graphic for this part
 // (it doesn't exist upstream), so we render our own cheap grid. Pin names here MUST match
 // src/parts/breadboard.ts exactly (that's what wires them up electrically).
-const COLS = 30;
+const COLS = 50;
 const ROWS_TOP = ['a', 'b', 'c', 'd', 'e'];
 const ROWS_BOTTOM = ['f', 'g', 'h', 'i', 'j'];
+const RAILS = ['tp', 'tn', 'bp', 'bn'];
 const PITCH = 16, MARGIN = 14;
 
 // Row y-offsets, top to bottom: top rails, gap, top strip (a-e), center gap, bottom strip (f-j), gap, bottom rails.
@@ -21,7 +22,7 @@ export class BreadboardElement extends HTMLElement {
     for (let c = 1; c <= COLS; c++) {
       const x = colX(c);
       for (const r of [...ROWS_TOP, ...ROWS_BOTTOM]) pins.push({ name: `${c}${r}`, x, y: Y[r], signals: [] });
-      for (const rail of ['tp', 'tn', 'bp', 'bn']) pins.push({ name: `${rail}${c}`, x, y: Y[rail], signals: [] });
+      for (const rail of RAILS) pins.push({ name: `${rail}.${c}`, x, y: Y[rail], signals: [] });
     }
     return pins;
   }
@@ -52,5 +53,7 @@ export class BreadboardElement extends HTMLElement {
 customElements.define('circuitlab-breadboard', BreadboardElement);
 // Aliases matching real Wokwi projects' type strings (see catalog.ts) - customElements.define()
 // rejects reusing the same class under multiple tags, so these are trivial subclasses.
+// wokwi-breadboard is the real Wokwi type string; -half/-full aren't real (kept as harmless aliases).
+customElements.define('wokwi-breadboard', class extends BreadboardElement {});
 customElements.define('wokwi-breadboard-half', class extends BreadboardElement {});
 customElements.define('wokwi-breadboard-full', class extends BreadboardElement {});

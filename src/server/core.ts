@@ -129,7 +129,11 @@ function stripCommonPrefix(files: Record<string, string>): Record<string, string
 // Real Wokwi diagram.json files don't necessarily name the board part "board" (any id is legal,
 // e.g. "esp", "uno1") - but every other part of this codebase assumes id === 'board'. Recognize a
 // board-ish part by its type instead, for import only.
-const BOARD_TYPE_RE = /^wokwi-(arduino|esp32|esp8266|nano-rp2040|rpi-pico|stm32)/;
+// Not anchored to a "wokwi-" prefix: real exports also use e.g. "board-esp32-devkit-c-v4" (verified
+// against a real diagram.json) - match an MCU family keyword anywhere in the type string instead.
+// Checked against every CATALOG part type string (basic/timing/displays/i2c parts, plus
+// board-mfrc522) to confirm none of them contain one of these keywords and would false-positive.
+const BOARD_TYPE_RE = /arduino|esp32|esp8266|rp2040|rpi-pico|stm32/i;
 
 function rewriteEndpoint(ep: string, oldId: string, newId: string): string {
   return ep === oldId || ep.startsWith(oldId + ':') ? newId + ep.slice(oldId.length) : ep;
