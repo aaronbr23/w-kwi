@@ -47,4 +47,7 @@ export const CATALOG: Record<string, PartFactory> = {
   'wokwi-ili9341': displays.ili9341,
   'wokwi-ds1307': i2c.ds1307,
   'wokwi-mpu6050': i2c.mpu6050,
+  // No @wokwi/elements visual for these yet (simulated only); type strings are ours, not upstream's.
+  'wokwi-relay': basic.relay,
+  'wokwi-relay-module': basic.relayModule,
 };

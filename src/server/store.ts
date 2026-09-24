@@ -51,8 +51,11 @@ export async function deleteProject(id: string) {
 }
 
 function filePath(id: string, name: string): string {
-  const p = path.join(dir(id), name);
-  if (!p.startsWith(dir(id) + path.sep) && p !== path.join(dir(id), name)) throw new Error('Invalid file path');
+  const base = dir(id);
+  const p = path.join(base, name);
+  // path.join() already collapses "..", so this actually rejects anything that escapes the
+  // project dir (the previous check compared p against itself and could never throw).
+  if (p !== base && !p.startsWith(base + path.sep)) throw new Error('Invalid file path');
   return p;
 }
 

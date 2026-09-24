@@ -31,14 +31,36 @@ async function api<T>(path: string, opts?: RequestInit): Promise<T> {
 
 const editor = monaco.editor.create($('editor'), { theme: 'vs-dark', language: 'cpp', automaticLayout: true, minimap: { enabled: false } });
 let saveTimer: ReturnType<typeof setTimeout>;
+let saveDirty = false;
+function saveCurrentFile() {
+  if (!saveDirty || !projectId) return;
+  saveDirty = false;
+  api(`/projects/${projectId}/file?name=${encodeURIComponent(currentFile)}`, { method: 'PUT', body: JSON.stringify({ content: editor.getValue() }) })
+    .catch((e) => console.error('Save failed:', e));
+}
 editor.onDidChangeModelContent(() => {
+  saveDirty = true;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => api(`/projects/${projectId}/file?name=${encodeURIComponent(currentFile)}`, { method: 'PUT', body: JSON.stringify({ content: editor.getValue() }) }), 500);
+  saveTimer = setTimeout(saveCurrentFile, 500);
 });
+/** Flush a pending debounced save before switching away from the file/project it targets,
+ *  otherwise the switch's own setValue() cancels the timer and the edit is lost silently. */
+function flushSave() {
+  clearTimeout(saveTimer);
+  saveCurrentFile();
+}
 
 async function loadProjects(): Promise<void> {
   const list = await api<{ id: string; board: string }[]>('/projects');
-  projectSelect.innerHTML = list.map((p) => `<option value="${p.id}">${p.id.slice(0, 8)} (${p.board.replace('wokwi-arduino-', '')})</option>`).join('');
+  // board comes from diagram.json, which a user can edit freely (not restricted to BOARD_TYPES) -
+  // build options via the DOM instead of innerHTML so a crafted board name can't inject markup.
+  projectSelect.innerHTML = '';
+  for (const p of list) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.id.slice(0, 8)} (${p.board.replace('wokwi-arduino-', '')})`;
+    projectSelect.appendChild(opt);
+  }
   if (list.length === 0) {
     const { id } = await api<{ id: string }>('/projects', { method: 'POST', body: JSON.stringify({ board: 'wokwi-arduino-uno' }) });
     return loadProjects().then(() => selectProject(id));
@@ -47,6 +69,7 @@ async function loadProjects(): Promise<void> {
 }
 
 async function selectFile(name: string) {
+  if (name !== currentFile) flushSave();
   currentFile = name;
   const { content } = await api<{ content: string }>(`/projects/${projectId}/file?name=${encodeURIComponent(name)}`);
   editor.setValue(content);
@@ -70,7 +93,9 @@ function renderCanvas() {
   canvas.innerHTML = '';
   els.clear();
   for (const spec of diagram.parts) {
-    const el = document.createElement(spec.type);
+    let el: HTMLElement;
+    try { el = document.createElement(spec.type); }
+    catch { continue; } // spec.type isn't a valid tag name (e.g. hand-edited diagram JSON); skip it
     el.className = 'part';
     el.style.top = `${spec.top ?? 0}px`;
     el.style.left = `${spec.left ?? 0}px`;
@@ -121,13 +146,15 @@ function connectWS() {
   ws?.close();
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/${projectId}`);
   ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'state') for (const [id, state] of Object.entries(msg.states)) applyState(id, state as Record<string, unknown>);
+    let msg: { type: string; states?: Record<string, Record<string, unknown>>; text?: string };
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === 'state') for (const [id, state] of Object.entries(msg.states ?? {})) applyState(id, state);
     if (msg.type === 'serial') { serialOut.textContent += msg.text; serialOut.scrollTop = serialOut.scrollHeight; }
   };
 }
 
 async function selectProject(id: string) {
+  if (id !== projectId) flushSave();
   projectId = id;
   projectSelect.value = id;
   diagram = await api<Diagram>(`/projects/${id}/diagram`);
@@ -157,7 +184,10 @@ $('edit-diagram').onclick = async () => {
   const editorEl = $('editor'), taEl = diagramJson;
   const showingJson = taEl.style.display === 'block';
   if (showingJson) {
-    diagram = JSON.parse(taEl.value);
+    let parsed: Diagram;
+    try { parsed = JSON.parse(taEl.value); }
+    catch (e) { alert(`Invalid diagram JSON: ${e instanceof Error ? e.message : e}`); return; }
+    diagram = parsed;
     await api(`/projects/${projectId}/diagram`, { method: 'PUT', body: taEl.value });
     renderCanvas();
   }

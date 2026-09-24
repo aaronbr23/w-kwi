@@ -20,14 +20,18 @@ export const ds1307: PartFactory = (ctx, spec) => {
   const init = attr(spec, 'initTime', 'now');
   let baseMs = init === 'now' ? Date.now() : Date.parse(init), baseSim = ctx.nowNs();
   let halted = false;
+  // Day-of-week is a free-running register on real DS1307 hardware, not derived from the date -
+  // the host sets it explicitly and it must read back whatever was last written.
+  let dow = new Date(baseMs).getUTCDay() + 1;
   const now = () => new Date(baseMs + (ctx.nowNs() - baseSim) / 1e6);
   const dev = registers(0x68, 64, (r) => {
     if (r > 6) return ram[r];
     const d = now();
     return [bcd(d.getUTCSeconds()) | (halted ? 0x80 : 0), bcd(d.getUTCMinutes()), bcd(d.getUTCHours()),
-      d.getUTCDay() + 1, bcd(d.getUTCDate()), bcd(d.getUTCMonth() + 1), bcd(d.getUTCFullYear() % 100)][r];
+      dow, bcd(d.getUTCDate()), bcd(d.getUTCMonth() + 1), bcd(d.getUTCFullYear() % 100)][r];
   }, (r, v) => {
     if (r > 6) { ram[r] = v; return; }
+    if (r === 3) { dow = unbcd(v); return; }
     const d = now();
     const parts = [d.getUTCSeconds(), d.getUTCMinutes(), d.getUTCHours(), 0, d.getUTCDate(), d.getUTCMonth() + 1, d.getUTCFullYear() % 100];
     if (r === 0) halted = !!(v & 0x80);
