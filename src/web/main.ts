@@ -36,6 +36,10 @@ const diagramJson = $<HTMLTextAreaElement>('diagram-json');
 const tabs = $<HTMLElement>('tabs');
 const boardSelect = $<HTMLSelectElement>('board-select');
 const importInput = $<HTMLInputElement>('import-input');
+const zoomInBtn = $<HTMLButtonElement>('zoom-in');
+const zoomOutBtn = $<HTMLButtonElement>('zoom-out');
+const zoomFitBtn = $<HTMLButtonElement>('zoom-fit');
+const zoomLevelEl = $<HTMLElement>('zoom-level');
 
 /** Palette grouping: cheapest correct grouping is to mirror src/parts/catalog.ts's own import
  *  structure (basic.ts/timing.ts/displays.ts/i2c.ts) rather than adding a server round-trip for it. */
@@ -205,7 +209,8 @@ function paletteButton(t: string): HTMLButtonElement {
   btn.title = t;
   btn.draggable = true;
   btn.addEventListener('dragstart', (e) => e.dataTransfer?.setData('text/plain', t));
-  btn.addEventListener('click', () => addPartAt(t, canvas.scrollLeft + canvas.clientWidth / 2, canvas.scrollTop + canvas.clientHeight / 2));
+  // Diagram-space point currently at the center of the (zoomed/panned) #canvas viewport - see setZoom()'s comment for the screen<->diagram formula this inverts.
+  btn.addEventListener('click', () => addPartAt(t, (canvas.clientWidth / 2 - panX) / zoom, (canvas.clientHeight / 2 - panY) / zoom));
   return btn;
 }
 
@@ -269,7 +274,107 @@ canvasInner.addEventListener('drop', (e) => {
   const type = e.dataTransfer?.getData('text/plain');
   if (!type) return;
   const rect = canvasInner.getBoundingClientRect();
-  addPartAt(type, e.clientX - rect.left, e.clientY - rect.top);
+  addPartAt(type, (e.clientX - rect.left) / zoom, (e.clientY - rect.top) / zoom);
+});
+
+/** Viewport: #canvas-inner has no native scroll/zoom (overflow: hidden) - it's positioned purely by
+ *  this {zoom, panX, panY} state via a CSS transform. This is what lets diagram-space parts at
+ *  negative top/left (real imported Wokwi diagrams have these) become reachable at all: native
+ *  scrollLeft/scrollTop can never go negative, so a 0-origin scrollable box can't reach them, but a
+ *  translate() has no such floor. transform-origin: 0 0 keeps the math below simple: a diagram-space
+ *  point (x, y) lands on screen (relative to #canvas's own top-left) at (panX + zoom*x, panY + zoom*y). */
+let zoom = 1, panX = 0, panY = 0;
+const ZOOM_MIN = 0.15, ZOOM_MAX = 3;
+
+function applyTransform() {
+  canvasInner.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+}
+function updateZoomReadout() {
+  zoomLevelEl.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+/** Zoom to a point: screenX/screenY are relative to #canvas's own top-left (NOT canvasInner's -
+ *  canvasInner's rect moves/scales with the transform we're about to change). Since
+ *  screen = pan + zoom*diagram, the diagram-space point under the cursor is
+ *  (screenX - panX) / zoom; solving the same equation for the new zoom with that diagram point
+ *  held fixed gives the new pan. */
+function setZoom(newZoom: number, screenX: number, screenY: number) {
+  newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, newZoom));
+  const diagramX = (screenX - panX) / zoom;
+  const diagramY = (screenY - panY) / zoom;
+  zoom = newZoom;
+  panX = screenX - diagramX * zoom;
+  panY = screenY - diagramY * zoom;
+  applyTransform();
+  updateZoomReadout();
+}
+function zoomCentered(factor: number) {
+  setZoom(zoom * factor, canvas.clientWidth / 2, canvas.clientHeight / 2);
+}
+
+/** Approximate (rotation-unaware - ponytail: a heavily-rotated part's true footprint can exceed
+ *  this slightly; add a rotated-corners bbox if that ever visibly clips something) bounding box of
+ *  every rendered part, then zoom/pan so the whole thing fits in #canvas with a margin. Clamped to
+ *  the same zoom range as wheel-zoom, and to a lower max so a tiny fresh project doesn't zoom in absurdly far. */
+function fitToView() {
+  const margin = 50;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const spec of diagram.parts) {
+    const meta = partMeta.get(spec.id);
+    const left = spec.left ?? 0, top = spec.top ?? 0;
+    minX = Math.min(minX, left); minY = Math.min(minY, top);
+    maxX = Math.max(maxX, left + (meta?.w ?? 0)); maxY = Math.max(maxY, top + (meta?.h ?? 0));
+  }
+  if (!Number.isFinite(minX)) { minX = minY = maxX = maxY = 0; } // no parts at all
+  const bboxW = Math.max(1, maxX - minX), bboxH = Math.max(1, maxY - minY);
+  const viewW = Math.max(1, canvas.clientWidth - margin * 2);
+  const viewH = Math.max(1, canvas.clientHeight - margin * 2);
+  zoom = Math.min(2, Math.max(ZOOM_MIN, Math.min(viewW / bboxW, viewH / bboxH)));
+  panX = margin + (viewW - bboxW * zoom) / 2 - minX * zoom;
+  panY = margin + (viewH - bboxH * zoom) / 2 - minY * zoom;
+  applyTransform();
+  updateZoomReadout();
+}
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  setZoom(zoom * Math.exp(-e.deltaY * 0.001), e.clientX - rect.left, e.clientY - rect.top);
+}, { passive: false });
+zoomInBtn.onclick = () => zoomCentered(1.25);
+zoomOutBtn.onclick = () => zoomCentered(1 / 1.25);
+zoomFitBtn.onclick = () => fitToView();
+
+/** Click-drag on empty canvas background (not a part/pin/wire/toolbar - those are all separate
+ *  elements and never equal e.target here) pans the view. Same click-vs-drag threshold pattern as
+ *  attachDrag()'s part dragging, so a real drag doesn't also fire the deselect click below. */
+function handleEmptyClick() {
+  let changed = false;
+  if (pendingWire) { setPendingWire(null); changed = true; }
+  if (selectedPart || selectedWire) { setSelection(null, null); changed = true; }
+  if (changed) renderOverlays();
+}
+let panDrag: { startX: number; startY: number; startPanX: number; startPanY: number; moved: boolean } | null = null;
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.target !== canvas && e.target !== canvasInner) return;
+  panDrag = { startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY, moved: false };
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!panDrag) return;
+  const dx = e.clientX - panDrag.startX, dy = e.clientY - panDrag.startY;
+  if (!panDrag.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) panDrag.moved = true;
+  if (!panDrag.moved) return;
+  panX = panDrag.startPanX + dx;
+  panY = panDrag.startPanY + dy;
+  applyTransform();
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (!panDrag) return;
+  const moved = panDrag.moved;
+  panDrag = null;
+  canvas.releasePointerCapture(e.pointerId);
+  if (!moved) handleEmptyClick();
 });
 
 /** Rotate a point (relative to an element's own center) by the element's `rotate` degrees,
@@ -334,6 +439,7 @@ async function renderAll() {
   }
   emptyHint.style.display = diagram.parts.length <= 1 ? 'flex' : 'none';
   renderOverlays();
+  fitToView(); // renderAll() only runs on a full diagram load/reload (reloadDiagram/selectProject/edit-diagram apply) - exactly when re-fitting the view makes sense.
 }
 
 /** Cheap synchronous redraw of pin dots, wires, selection outline and the toolbar - safe to
@@ -523,17 +629,9 @@ canvasInner.addEventListener('pointermove', (e) => {
   const rect = canvasInner.getBoundingClientRect();
   tempLine.setAttribute('x1', String(pendingWire.pos.x));
   tempLine.setAttribute('y1', String(pendingWire.pos.y));
-  tempLine.setAttribute('x2', String(e.clientX - rect.left));
-  tempLine.setAttribute('y2', String(e.clientY - rect.top));
+  tempLine.setAttribute('x2', String((e.clientX - rect.left) / zoom));
+  tempLine.setAttribute('y2', String((e.clientY - rect.top) / zoom));
   tempWireSvg.style.display = 'block';
-});
-
-canvasInner.addEventListener('click', (e) => {
-  if (e.target !== canvasInner) return; // a part/pin/wire click already stopPropagation()'d
-  let changed = false;
-  if (pendingWire) { setPendingWire(null); changed = true; }
-  if (selectedPart || selectedWire) { setSelection(null, null); changed = true; }
-  if (changed) renderOverlays();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -543,9 +641,14 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return; // typing elsewhere
+  if (!e.ctrlKey && !e.metaKey) { // don't hijack the browser's own ctrl/cmd +/-/0 page zoom
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomCentered(1.25); return; }
+    if (e.key === '-') { e.preventDefault(); zoomCentered(1 / 1.25); return; }
+    if (e.key === '0') { e.preventDefault(); fitToView(); return; }
+  }
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
   if (selectedPart && selectedPart !== 'board') { e.preventDefault(); deleteSelectedPart(); }
   else if (selectedWire) { e.preventDefault(); deleteSelectedWire(); }
 });
@@ -591,8 +694,10 @@ function attachDrag(el: HTMLElement, spec: DiagramPart) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) moved = true;
       if (!moved) return;
-      spec.top = origTop + dy;
-      spec.left = origLeft + dx;
+      // Screen-pixel delta -> diagram-space delta: divide out the current zoom, otherwise a
+      // dragged part moves faster/slower than the cursor whenever zoom != 1.
+      spec.top = origTop + dy / zoom;
+      spec.left = origLeft + dx / zoom;
       el.style.top = `${spec.top}px`;
       el.style.left = `${spec.left}px`;
       renderOverlays();

@@ -47,8 +47,12 @@
     .palette-section:nth-of-type(4) h4 { color: var(--accent); }
     .palette-section:nth-of-type(5) h4 { color: #b58aff; }
 
-    #canvas { flex: 1; position: relative; overflow: auto; background: #26282f; background-image: radial-gradient(#3c4050 1px, transparent 1px); background-size: 16px 16px; }
-    #canvas-inner { position: relative; width: 2400px; height: 1600px; }
+    #canvas { flex: 1; position: relative; overflow: hidden; background: #26282f; background-image: radial-gradient(#3c4050 1px, transparent 1px); background-size: 16px 16px; touch-action: none; }
+    #canvas-inner { position: relative; width: 2400px; height: 1600px; transform-origin: 0 0; }
+    #zoom-controls { position: absolute; right: 8px; bottom: 8px; z-index: 5; display: flex; align-items: center; gap: 4px; background: #2a2e3a; border: 1px solid #4a5068; border-radius: 5px; padding: 4px 6px; }
+    #zoom-controls button { background: #383e50; color: #ddd; border: 1px solid #4a5068; border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
+    #zoom-controls button:hover { background: #4a5268; }
+    #zoom-level { font-size: 11px; color: #8a92a8; min-width: 34px; text-align: center; }
     #wires, #temp-wire, #parts-layer, #pins-layer { position: absolute; inset: 0; pointer-events: none; }
     #temp-wire { display: none; }
     #temp-wire line { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
@@ -119,6 +123,12 @@
     <div id="right-pane">
       <div id="palette"></div>
       <div id="canvas">
+        <div id="zoom-controls">
+          <button id="zoom-out" title="Zoom out (-)">−</button>
+          <span id="zoom-level">100%</span>
+          <button id="zoom-in" title="Zoom in (+)">+</button>
+          <button id="zoom-fit" title="Fit to view (0)">Fit</button>
+        </div>
         <div id="canvas-inner">
           <svg id="wires"></svg>
           <svg id="temp-wire"><line id="temp-line" x1="0" y1="0" x2="0" y2="0" /></svg>
