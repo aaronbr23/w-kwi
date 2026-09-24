@@ -1,4 +1,4 @@
-// Project storage on disk: /data/projects/<id>/{sketch.ino, diagram.json, libraries.txt}
+// Project storage on disk: /data/projects/<id>/{sketch/sketch.ino, diagram.json, libraries.txt}
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -32,11 +32,15 @@ export async function listProjects(): Promise<ProjectInfo[]> {
   return out;
 }
 
+// arduino-cli requires the main .ino to be named after its containing folder, so the sketch
+// lives in its own "sketch/" subfolder while diagram.json/libraries.txt sit at the project root.
+export const SKETCH_MAIN = 'sketch/sketch.ino';
+
 export async function createProject(board: string, id = randomUUID()): Promise<string> {
   if (!BOARD_TYPES.includes(board)) throw new Error(`Unknown board type "${board}". Known: ${BOARD_TYPES.join(', ')}`);
   const d = dir(id);
-  await fs.mkdir(d, { recursive: true });
-  await fs.writeFile(path.join(d, 'sketch.ino'), BLINK_INO);
+  await fs.mkdir(path.join(d, 'sketch'), { recursive: true });
+  await fs.writeFile(path.join(d, SKETCH_MAIN), BLINK_INO);
   await fs.writeFile(path.join(d, 'diagram.json'), JSON.stringify(defaultDiagram(board), null, 2));
   await fs.writeFile(path.join(d, 'libraries.txt'), '');
   return id;

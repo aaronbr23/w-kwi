@@ -19,7 +19,7 @@ const tabs = $<HTMLElement>('tabs');
 let projectId = '';
 let diagram: Diagram = { parts: [], connections: [] };
 let files: string[] = [];
-let currentFile = 'sketch.ino';
+let currentFile = 'sketch/sketch.ino';
 let ws: WebSocket | undefined;
 const els = new Map<string, HTMLElement>();
 
@@ -63,7 +63,7 @@ async function renderTabs() {
     b.onclick = () => selectFile(f);
     tabs.appendChild(b);
   }
-  await selectFile(files.includes('sketch.ino') ? 'sketch.ino' : files[0]);
+  await selectFile(files.includes('sketch/sketch.ino') ? 'sketch/sketch.ino' : files[0]);
 }
 
 function renderCanvas() {

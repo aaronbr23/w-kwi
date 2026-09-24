@@ -21,7 +21,7 @@ export async function compile(id: string, board: string): Promise<CompileResult>
   }
   const outDir = path.join(dir, 'build');
   try {
-    const { stdout } = await run('arduino-cli', ['compile', '--fqbn', fqbn, '--output-dir', outDir, dir]);
+    const { stdout } = await run('arduino-cli', ['compile', '--fqbn', fqbn, '--output-dir', outDir, path.join(dir, 'sketch')]);
     const hexFile = (await fs.readdir(outDir)).find((f) => f.endsWith('.hex'));
     if (!hexFile) return { ok: false, output: stdout + '\n(no .hex produced)' };
     const hex = await fs.readFile(path.join(outDir, hexFile));

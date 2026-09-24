@@ -52,7 +52,7 @@ export function createMcpServer(): McpServer {
   tool('set_part_attr', { inputSchema: { id: z.string(), partId: z.string(), name: z.string(), value: z.string() } },
     ({ id, partId, name, value }) => guard(async () => { await core.setPartAttr(id, partId, name, value); return text('set'); }));
 
-  tool('compile', { description: 'Compile sketch.ino with arduino-cli. Returns compiler output; check .ok.', inputSchema: { id: z.string() } },
+  tool('compile', { description: 'Compile sketch/sketch.ino with arduino-cli. Returns compiler output; check .ok.', inputSchema: { id: z.string() } },
     ({ id }) => guard(async () => { const r = await core.compileProject(id); return json({ ok: r.ok, output: r.output }); }));
 
   tool('start_simulation', { inputSchema: { id: z.string() } }, ({ id }) => guard(async () => { await core.startSimulation(id); return text('started'); }));
