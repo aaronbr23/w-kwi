@@ -476,7 +476,11 @@ function renderOverlays() {
   for (const conn of diagram.connections) {
     const [a, b, color] = conn;
     const pa = pinPositions.get(a), pb = pinPositions.get(b);
-    if (!pa || !pb) continue; // dangling reference to a pin that no longer exists
+    if (!pa || !pb) {
+      const missing = !pa ? a : b;
+      if (!missing.startsWith('$')) console.warn(`Wire "${a}" -> "${b}" not drawn: pin position not found for "${missing}".`);
+      continue; // dangling reference to a pin that no longer exists
+    }
     const isSel = !!selectedWire && selectedWire[0] === a && selectedWire[1] === b;
     const g = document.createElementNS(SVG_NS, 'g');
     const hit = document.createElementNS(SVG_NS, 'line');
@@ -877,10 +881,11 @@ importInput.onchange = async () => {
       for (const f of fileList) files[f.name] = await readFileAsText(f);
       payload = { files };
     }
-    const { id } = await api<{ id: string }>('/projects/import', { method: 'POST', body: JSON.stringify(payload) });
+    const { id, warnings } = await api<{ id: string; warnings: string[] }>('/projects/import', { method: 'POST', body: JSON.stringify(payload) });
     await loadProjects();
     await selectProject(id);
-    showMsg(`Imported as project ${id.slice(0, 8)}`);
+    const base = `Imported as project ${id.slice(0, 8)}`;
+    showMsg(warnings.length ? `${base}\n${warnings.join('\n')}` : base);
   } catch (e) { console.error('Import failed', e); showMsg(e instanceof Error ? e.message : String(e), true); }
 };
 

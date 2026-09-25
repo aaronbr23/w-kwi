@@ -34,7 +34,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, url: 
       if (id === 'import' && method === 'POST') {
         const b = await body(req) as { files?: Record<string, string>; zip?: string };
         const files = b.zip ? unzip(Buffer.from(b.zip, 'base64')) : (b.files ?? {});
-        return ok(res, { id: await core.importProject(files) });
+        return ok(res, await core.importProject(files));
       }
       if (method === 'DELETE') { core.stopSimulation(id); await core.store.deleteProject(id); return ok(res, { ok: true }); }
     }

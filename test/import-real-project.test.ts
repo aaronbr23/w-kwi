@@ -27,7 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixture = readFileSync(path.join(__dirname, 'fixtures/smarthome-diagram.json'), 'utf8');
 
 test('importing a real Wokwi export normalizes the board and preserves everything else', async () => {
-  const id = await core.importProject({ 'diagram.json': fixture });
+  const { id, warnings } = await core.importProject({ 'diagram.json': fixture });
   const diagram: Diagram = await core.store.getDiagram(id);
 
   // board-esp32-devkit-c-v4 (id "esp") was recognized as a board-ish part (BOARD_TYPE_RE fix),
@@ -36,6 +36,9 @@ test('importing a real Wokwi export normalizes the board and preserves everythin
   assert.ok(board, 'no part with id "board" after import');
   assert.ok(BOARD_TYPES.includes(board!.type), `swapped board type "${board!.type}" should be a supported board`);
   assert.equal(diagram.parts.some((p) => p.id === 'esp'), false); // old id gone, renamed to "board"
+
+  // The unsupported-board swap is surfaced to the user, not just console.log'd server-side.
+  assert.ok(warnings.some((w) => w.includes('board-esp32-devkit-c-v4')), 'expected a warning about the unsupported board type swap');
 
   // Connections that referenced the old board id "esp:..." were rewritten to "board:...".
   const espRefs = diagram.connections.flatMap(([a, b]) => [a, b]).filter((e) => e.startsWith('esp:'));

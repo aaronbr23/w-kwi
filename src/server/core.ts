@@ -143,31 +143,38 @@ function rewriteEndpoint(ep: string, oldId: string, newId: string): string {
  *  finds the board-ish part (by type, any id), renames it to 'board' and rewrites connections
  *  to match, swapping in a supported fallback type (Uno) if the original board isn't simulatable
  *  here (e.g. ESP32). Inserts a fresh Uno board if the diagram has no board-ish part at all. */
-function normalizeImportedDiagram(d: Diagram): Diagram {
+function normalizeImportedDiagram(d: Diagram): { diagram: Diagram; warnings: string[] } {
+  const warnings: string[] = [];
   const boardPart = d.parts.find((p) => BOARD_TYPE_RE.test(p.type));
   if (!boardPart) {
     console.log('importProject: no board-like part found in uploaded diagram.json, inserting a default Uno');
-    return { ...d, parts: [{ type: 'wokwi-arduino-uno', id: 'board', top: 0, left: 0, attrs: {} }, ...d.parts] };
+    warnings.push('No board found in the imported diagram.json - inserted a default Uno.');
+    return { diagram: { ...d, parts: [{ type: 'wokwi-arduino-uno', id: 'board', top: 0, left: 0, attrs: {} }, ...d.parts] }, warnings };
   }
   const oldId = boardPart.id;
   if (!BOARD_TYPES.includes(boardPart.type)) {
     console.log(`importProject: board type "${boardPart.type}" isn't supported here, swapping to wokwi-arduino-uno (wiring to it will need adjusting)`);
+    warnings.push(`Board type "${boardPart.type}" isn't supported yet, wiring for board pins will not display correctly (swapped to Uno for now).`);
     boardPart.type = 'wokwi-arduino-uno';
   }
-  if (oldId === 'board') return d;
+  if (oldId === 'board') return { diagram: d, warnings };
   boardPart.id = 'board';
-  return { ...d, connections: d.connections.map(([a, b, ...rest]) => [rewriteEndpoint(a, oldId, 'board'), rewriteEndpoint(b, oldId, 'board'), ...rest] as Diagram['connections'][number]) };
+  return { diagram: { ...d, connections: d.connections.map(([a, b, ...rest]) => [rewriteEndpoint(a, oldId, 'board'), rewriteEndpoint(b, oldId, 'board'), ...rest] as Diagram['connections'][number]) }, warnings };
 }
 
 /** Import a project from an uploaded file set (see api.ts POST /projects/import for the shape).
  *  Board comes from the uploaded diagram.json if present and valid, else defaults to an Uno. */
-export async function importProject(rawFiles: Record<string, string>): Promise<string> {
+export async function importProject(rawFiles: Record<string, string>): Promise<{ id: string; warnings: string[] }> {
   const files = stripCommonPrefix(rawFiles);
   let normalizedDiagram: Diagram | undefined;
+  let warnings: string[] = [];
   const diagramRaw = files['diagram.json'];
   if (diagramRaw !== undefined) {
-    try { normalizedDiagram = normalizeImportedDiagram(JSON.parse(diagramRaw) as Diagram); }
-    catch { console.log('importProject: diagram.json in upload is not valid JSON, ignoring it and starting from a default diagram'); }
+    try { ({ diagram: normalizedDiagram, warnings } = normalizeImportedDiagram(JSON.parse(diagramRaw) as Diagram)); }
+    catch {
+      console.log('importProject: diagram.json in upload is not valid JSON, ignoring it and starting from a default diagram');
+      warnings = ['diagram.json in the upload is not valid JSON - ignored it and started a blank default project.'];
+    }
   }
   const id = await store.createProject(normalizedDiagram?.parts.find((p) => p.id === 'board')?.type ?? 'wokwi-arduino-uno');
   if (normalizedDiagram) await store.setDiagram(id, normalizedDiagram);
@@ -176,7 +183,7 @@ export async function importProject(rawFiles: Record<string, string>): Promise<s
     if (!name.includes('/') && name.endsWith('.ino')) { await store.writeFile(id, store.SKETCH_MAIN, content); continue; }
     await store.writeFile(id, name.startsWith('sketch/') ? name : `sketch/${name}`, content);
   }
-  return id;
+  return { id, warnings };
 }
 
 export { store, type LogicSample };
